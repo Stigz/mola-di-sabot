@@ -1,0 +1,11 @@
+project_name = "mola-di-sabot"
+environment  = "dev"
+aws_region   = "eu-central-1"
+
+frontend_origins = [
+  "http://localhost:5173"
+]
+
+monthly_budget_usd = 5
+budget_alert_email = ""
+
