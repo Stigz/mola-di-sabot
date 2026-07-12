@@ -1,6 +1,6 @@
 # Mola di Sabot
 
-A small planning app for the Mola di Sabot household: availability, work windows, tasks, hours, and simple Bauphase finance tracking.
+A small planning app for the Mola di Sabot household: availability, work windows, tasks, hours, and a hidden Bauphase finance view.
 
 ## Architecture
 
@@ -15,11 +15,13 @@ The frontend works locally with browser storage when no API URL is configured. W
 
 ## Finanzen
 
-The finance page uses a simple model:
+The finance page is not shown in the main navigation. It is reachable directly at `/mola-di-sabot/finanzen`.
+
+The finance model is intentionally simple:
 
 - **Bauphase:** the whole amortisable container, currently `Mühle Täbu März-Juni 2026`.
-- **Projekt:** a category inside the Bauphase, such as `Küche`, `Abwasser`, or `Hühnerhüsli`.
-- **Aufgabe/Notiz:** the concrete work description on each row.
+- **Material / Position:** separate purchase rows such as `Küche`, `Poschi`, and `Bauhaus Einkauf`.
+- **Aufgabe:** a sublist explaining work rows; work is valued only once at Bauphase level.
 
 Money and work create provisional Anteile until the Verein accepts the rules. The Google Sheet keeps the editable source data in `Investitionen`, `Arbeit Wochen`, and `Bauphasen`.
 
