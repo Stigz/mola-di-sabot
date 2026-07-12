@@ -599,8 +599,10 @@ textarea {
 .finance-stats span,
 .finance-stats small,
 .finance-facts dt,
-.finance-table small,
-.reading-grid p {
+.material-row span,
+.task-subrow span,
+.reading-grid p,
+.finance-note {
   color: #667085;
 }
 
@@ -608,10 +610,15 @@ textarea {
   font-size: 1.25rem;
 }
 
-.finance-grid {
+.finance-grid,
+.finance-detail-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.4fr) minmax(260px, 0.6fr);
   gap: 12px;
+}
+
+.finance-detail-grid {
+  grid-template-columns: minmax(260px, 0.65fr) minmax(0, 1.35fr);
 }
 
 .finance-panel {
@@ -686,51 +693,44 @@ textarea {
   width: 100%;
 }
 
-.finance-table {
-  overflow-x: auto;
+.material-list,
+.task-sublist {
+  display: grid;
+  gap: 8px;
 }
 
-.finance-table table {
-  width: 100%;
-  min-width: 760px;
-  border-collapse: collapse;
+.material-row,
+.task-subrow {
+  display: grid;
+  align-items: center;
+  gap: 10px;
+  padding: 11px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background: #ffffff;
 }
 
-.finance-table th,
-.finance-table td {
-  padding: 10px;
-  border-bottom: 1px solid #e2e8f0;
-  text-align: left;
-  vertical-align: top;
+.material-row {
+  grid-template-columns: minmax(0, 1fr) auto auto;
 }
 
-.finance-table th {
-  color: #475467;
-  font-size: 0.78rem;
-  text-transform: uppercase;
-}
-
-.finance-table td:first-child {
+.material-row div {
   display: grid;
   gap: 3px;
 }
 
-.project-total {
-  display: grid;
-  gap: 6px;
-  min-width: 120px;
+.task-subrow {
+  grid-template-columns: minmax(0, 1fr) auto;
 }
 
-.project-total span {
-  display: block;
-  height: 5px;
-  border-radius: 999px;
-  background: #2563eb;
+.finance-note {
+  margin-bottom: 10px;
 }
 
 .finance-status {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   min-height: 26px;
   padding: 0 9px;
   border-radius: 999px;
@@ -782,7 +782,8 @@ textarea {
 
   .calendar-layout,
   .data-layout,
-  .finance-grid {
+  .finance-grid,
+  .finance-detail-grid {
     grid-template-columns: 1fr;
   }
 
@@ -814,7 +815,9 @@ textarea {
   }
 
   .finance-facts div,
-  .amortization-line {
+  .amortization-line,
+  .material-row,
+  .task-subrow {
     grid-template-columns: 1fr;
   }
 }
