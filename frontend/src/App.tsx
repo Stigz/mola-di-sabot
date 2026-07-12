@@ -12,7 +12,6 @@ import {
   ReceiptText,
   RotateCcw,
   Settings2,
-  TableProperties,
 } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { createClient } from "./lib/api";
@@ -60,27 +59,16 @@ type FinanceRuleState = {
   sharesRule: string;
 };
 
-type MoneyEntry = {
-  project: string;
+type MaterialEntry = {
+  item: string;
   amount: number;
   note: string;
-  status?: "offen" | "provisorisch";
+  status: "offen" | "provisorisch";
 };
 
 type WorkEntry = {
-  project: string;
-  days: number;
   task: string;
-};
-
-type ProjectSummary = {
-  name: string;
-  money: number;
-  workDays: number;
-  workValue: number;
-  total: number;
-  status: "offen" | "provisorisch";
-  notes: string[];
+  days: number;
 };
 
 const taskStatusLabels: Record<Task["status"], string> = {
@@ -96,35 +84,36 @@ const defaultFinanceRules: FinanceRuleState = {
   sharesRule: "Geld und Arbeit zählen als provisorische Anteile bis Vereinsbeschluss.",
 };
 
-const financeMoneyEntries: MoneyEntry[] = [
+const financeMaterialEntries: MaterialEntry[] = [
   {
-    project: "Küche",
+    item: "Küche",
     amount: 2100,
-    note: "Küche bar gekauft; gehört laut Sheet dem Verein.",
+    note: "Bar gekauft; gehört laut Sheet dem Verein.",
     status: "provisorisch",
   },
   {
-    project: "Poschi",
+    item: "Poschi",
     amount: 1000,
     note: "Eigentum ist im Sheet noch als Nic? markiert.",
     status: "offen",
   },
   {
-    project: "Bauhaus Einkauf",
+    item: "Bauhaus Einkauf",
     amount: 26,
-    note: "Kleininvestition, Projekt kann später präzisiert werden.",
+    note: "Kleininvestition; Position kann später präzisiert werden.",
     status: "provisorisch",
   },
 ];
 
 const financeWorkEntries: WorkEntry[] = [
-  { project: "Hühnerhüsli", days: 5, task: "Hühnerhüsli ufrume" },
-  { project: "Küche / Keller", days: 9.5, task: "Keller bau, Küche" },
-  { project: "Abwasser", days: 6.5, task: "Abwasser" },
-  { project: "Küche / Abwasser", days: 7, task: "Küche / Abwasser" },
-  { project: "Küche", days: 10.5, task: "Küche zügeln, Boden, Einbau" },
-  { project: "Strom Küche", days: 2, task: "Strom Küche" },
-  { project: "Noch zuordnen", days: 9, task: "Wochen ohne Projekttext" },
+  { task: "Hühnerhüsli ufrume", days: 5 },
+  { task: "Keller bau, Küche", days: 9.5 },
+  { task: "Abwasser", days: 6.5 },
+  { task: "Küche / Abwasser", days: 7 },
+  { task: "Küche zügeln + Zementierung; Bodenversiegelung", days: 7 },
+  { task: "Küche einbauen", days: 3.5 },
+  { task: "Strom Küche", days: 2 },
+  { task: "Wochen ohne Aufgabe", days: 9 },
 ];
 
 const currencyFormatter = new Intl.NumberFormat("de-CH", {
@@ -247,44 +236,6 @@ function readFinanceRules(): FinanceRuleState {
 
 function writeFinanceRules(rules: FinanceRuleState): void {
   localStorage.setItem(financeRulesStorageKey, JSON.stringify(rules));
-}
-
-function buildProjectSummaries(rules: FinanceRuleState): ProjectSummary[] {
-  const summaries = new Map<string, ProjectSummary>();
-
-  function ensure(project: string): ProjectSummary {
-    const existing = summaries.get(project);
-    if (existing) return existing;
-    const next: ProjectSummary = {
-      name: project,
-      money: 0,
-      workDays: 0,
-      workValue: 0,
-      total: 0,
-      status: "provisorisch",
-      notes: [],
-    };
-    summaries.set(project, next);
-    return next;
-  }
-
-  for (const entry of financeMoneyEntries) {
-    const project = ensure(entry.project);
-    project.money += entry.amount;
-    project.notes.push(entry.note);
-    if (entry.status === "offen") project.status = "offen";
-  }
-
-  for (const entry of financeWorkEntries) {
-    const project = ensure(entry.project);
-    project.workDays += entry.days;
-    project.workValue += entry.days * rules.hoursPerDay * rules.hourlyRate;
-    project.notes.push(entry.task);
-  }
-
-  return Array.from(summaries.values())
-    .map((summary) => ({ ...summary, total: summary.money + summary.workValue }))
-    .sort((a, b) => b.total - a.total || a.name.localeCompare(b.name, "de-CH"));
 }
 
 export function App() {
@@ -460,10 +411,6 @@ export function App() {
           <button className={tab === "hours" ? "active" : ""} onClick={() => switchTab("hours")}>
             <Clock3 size={18} />
             Stunden
-          </button>
-          <button className={tab === "finance" ? "active" : ""} onClick={() => switchTab("finance")}>
-            <Banknote size={18} />
-            Finanzen
           </button>
         </nav>
       </header>
@@ -736,15 +683,16 @@ export function App() {
 
 function FinancePage() {
   const [rules, setRules] = useState<FinanceRuleState>(() => readFinanceRules());
-  const projects = useMemo(() => buildProjectSummaries(rules), [rules]);
 
-  const moneyTotal = financeMoneyEntries.reduce((sum, entry) => sum + entry.amount, 0);
+  const materialTotal = financeMaterialEntries.reduce((sum, entry) => sum + entry.amount, 0);
+  const openMaterialTotal = financeMaterialEntries
+    .filter((entry) => entry.status === "offen")
+    .reduce((sum, entry) => sum + entry.amount, 0);
   const workDays = financeWorkEntries.reduce((sum, entry) => sum + entry.days, 0);
   const workHours = workDays * rules.hoursPerDay;
   const workTotal = workHours * rules.hourlyRate;
-  const phaseTotal = moneyTotal + workTotal;
+  const phaseTotal = materialTotal + workTotal;
   const monthlyAmortization = rules.amortizationMonths > 0 ? phaseTotal / rules.amortizationMonths : 0;
-  const largestProjectTotal = Math.max(...projects.map((project) => project.total), 1);
 
   function updateFinanceRule<Key extends keyof FinanceRuleState>(
     key: Key,
@@ -769,8 +717,8 @@ function FinancePage() {
           <p className="eyebrow">Finanzen</p>
           <h2>Mühle Täbu März-Juni 2026</h2>
           <p>
-            Eine Bauphase fasst die ganze Tabelle zusammen. Projekte wie Küche, Abwasser und
-            Hühnerhüsli bleiben darunter einfache Filter.
+            Diese Seite ist bewusst nicht in der Hauptnavigation. Die Bauphase ist der einzige Ort,
+            an dem Arbeit in Geld und provisorische Anteile umgerechnet wird.
           </p>
         </div>
         <a className="sheet-link" href={financeSpreadsheetUrl} target="_blank" rel="noreferrer">
@@ -782,9 +730,9 @@ function FinancePage() {
       <div className="finance-stats">
         <article>
           <ReceiptText size={18} />
-          <span>Geld</span>
-          <strong>{formatCHF(moneyTotal)}</strong>
-          <small>inkl. Poschi als offen</small>
+          <span>Material</span>
+          <strong>{formatCHF(materialTotal)}</strong>
+          <small>{openMaterialTotal > 0 ? `${formatCHF(openMaterialTotal)} offen` : "provisorisch"}</small>
         </article>
         <article>
           <Clock3 size={18} />
@@ -799,7 +747,7 @@ function FinancePage() {
           <small>provisorische Anteile</small>
         </article>
         <article>
-          <TableProperties size={18} />
+          <Banknote size={18} />
           <span>Amortisation</span>
           <strong>{rules.amortizationMonths > 0 ? formatCHF(monthlyAmortization) : "keine"}</strong>
           <small>{rules.amortizationMonths > 0 ? "pro Monat" : "nicht verteilt"}</small>
@@ -819,7 +767,13 @@ function FinancePage() {
             </div>
             <div>
               <dt>Quelle</dt>
-              <dd>Tabs Investitionen, Arbeit Wochen, Bauphasen</dd>
+              <dd>Tabs Bauphasen, Investitionen, Arbeit Wochen</dd>
+            </div>
+            <div>
+              <dt>Arbeitswert</dt>
+              <dd>
+                {numberFormatter.format(workDays)} Tage × {numberFormatter.format(rules.hoursPerDay)}h × {formatCHF(rules.hourlyRate)} = {formatCHF(workTotal)}
+              </dd>
             </div>
             <div>
               <dt>Regel</dt>
@@ -891,65 +845,59 @@ function FinancePage() {
         </section>
       </div>
 
-      <section className="finance-panel">
-        <div className="panel-heading">
-          <Banknote size={18} />
-          <h2>Projekte in der Bauphase</h2>
-        </div>
-        <div className="finance-table">
-          <table>
-            <thead>
-              <tr>
-                <th>Projekt</th>
-                <th>Geld</th>
-                <th>Arbeit</th>
-                <th>Total</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {projects.map((project) => (
-                <tr key={project.name}>
-                  <td>
-                    <strong>{project.name}</strong>
-                    <small>{project.notes[0]}</small>
-                  </td>
-                  <td>{project.money > 0 ? formatCHF(project.money) : "-"}</td>
-                  <td>
-                    {project.workDays > 0
-                      ? `${formatCHF(project.workValue)} · ${numberFormatter.format(project.workDays)} Tage`
-                      : "-"}
-                  </td>
-                  <td>
-                    <div className="project-total">
-                      <strong>{formatCHF(project.total)}</strong>
-                      <span style={{ width: `${Math.max(8, (project.total / largestProjectTotal) * 100)}%` }} />
-                    </div>
-                  </td>
-                  <td>
-                    <span className={`finance-status ${project.status}`}>{project.status}</span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
+      <div className="finance-detail-grid">
+        <section className="finance-panel">
+          <div className="panel-heading">
+            <ReceiptText size={18} />
+            <h2>Material</h2>
+          </div>
+          <div className="material-list">
+            {financeMaterialEntries.map((entry) => (
+              <article className="material-row" key={entry.item}>
+                <div>
+                  <strong>{entry.item}</strong>
+                  <span>{entry.note}</span>
+                </div>
+                <strong>{formatCHF(entry.amount)}</strong>
+                <span className={`finance-status ${entry.status}`}>{entry.status}</span>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section className="finance-panel">
+          <div className="panel-heading">
+            <ListTodo size={18} />
+            <h2>Aufgaben in der Bauphase</h2>
+          </div>
+          <p className="muted finance-note">
+            Aufgaben erklären die Arbeit. Der CHF-Wert wird nur oben für die ganze Bauphase gerechnet.
+          </p>
+          <div className="task-sublist">
+            {financeWorkEntries.map((entry) => (
+              <article className="task-subrow" key={entry.task}>
+                <span>{entry.task}</span>
+                <strong>{numberFormatter.format(entry.days)} Tage</strong>
+              </article>
+            ))}
+          </div>
+        </section>
+      </div>
 
       <section className="finance-panel finance-reading">
         <div className="panel-heading">
           <ReceiptText size={18} />
           <h2>Lesart</h2>
         </div>
-        <div className="reading-grid">
+        <div className="reading-grid compact">
           <p>
             <strong>Bauphase</strong> ist das Ding, das amortisiert wird: hier die ganze Mühle-Täbu-Tabelle.
           </p>
           <p>
-            <strong>Projekt</strong> ordnet Beiträge ein: Küche, Abwasser, Hühnerhüsli oder noch zuordnen.
+            <strong>Aufgaben</strong> sind nur die Unterliste der Arbeit. Sie bekommen keinen eigenen CHF-Wert.
           </p>
           <p>
-            <strong>Aufgabe/Notiz</strong> bleibt auf der Zeile: zum Beispiel Küche einbauen.
+            <strong>Material</strong> bleibt als einzelne Position sichtbar, weil Belege und Eigentum geklärt werden müssen.
           </p>
           <p>
             <strong>Anteile</strong> bleiben provisorisch, bis der Verein die Regeln annimmt.
