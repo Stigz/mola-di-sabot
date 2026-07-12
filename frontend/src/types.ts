@@ -1,7 +1,7 @@
 export type AvailabilityStatus = "green" | "yellow" | "red";
 export type Period = "morning" | "afternoon";
 export type CalendarView = "month" | "week";
-export type AppTab = "calendar" | "tasks" | "hours";
+export type AppTab = "calendar" | "tasks" | "hours" | "finance";
 
 export interface Resident {
   id: string;
