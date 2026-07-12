@@ -1,12 +1,18 @@
 import {
+  Banknote,
   CalendarDays,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
   Clock3,
+  FileSpreadsheet,
+  Layers3,
   ListTodo,
   Plus,
+  ReceiptText,
   RotateCcw,
+  Settings2,
+  TableProperties,
 } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { createClient } from "./lib/api";
@@ -41,12 +47,95 @@ const statusOptions: Array<{ id: AvailabilityStatus; label: string; shortLabel: 
 
 const client = createClient();
 const residentSorter = new Intl.Collator("de-CH", { sensitivity: "base" });
+const financeSpreadsheetUrl =
+  "https://docs.google.com/spreadsheets/d/1AsAhdj9Hn7DA30unYn4Haki6sG8jufdgJFdMTpxDFR8/edit";
+const financeRulesStorageKey = "mola-di-sabot-finance-rules-v1";
+
 type DayStatus = AvailabilityStatus | "mixed" | "empty";
+
+type FinanceRuleState = {
+  amortizationMonths: number;
+  hoursPerDay: number;
+  hourlyRate: number;
+  sharesRule: string;
+};
+
+type MoneyEntry = {
+  project: string;
+  amount: number;
+  note: string;
+  status?: "offen" | "provisorisch";
+};
+
+type WorkEntry = {
+  project: string;
+  days: number;
+  task: string;
+};
+
+type ProjectSummary = {
+  name: string;
+  money: number;
+  workDays: number;
+  workValue: number;
+  total: number;
+  status: "offen" | "provisorisch";
+  notes: string[];
+};
+
 const taskStatusLabels: Record<Task["status"], string> = {
   planned: "geplant",
   active: "aktiv",
   done: "erledigt",
 };
+
+const defaultFinanceRules: FinanceRuleState = {
+  amortizationMonths: 60,
+  hoursPerDay: 8,
+  hourlyRate: 25,
+  sharesRule: "Geld und Arbeit zählen als provisorische Anteile bis Vereinsbeschluss.",
+};
+
+const financeMoneyEntries: MoneyEntry[] = [
+  {
+    project: "Küche",
+    amount: 2100,
+    note: "Küche bar gekauft; gehört laut Sheet dem Verein.",
+    status: "provisorisch",
+  },
+  {
+    project: "Poschi",
+    amount: 1000,
+    note: "Eigentum ist im Sheet noch als Nic? markiert.",
+    status: "offen",
+  },
+  {
+    project: "Bauhaus Einkauf",
+    amount: 26,
+    note: "Kleininvestition, Projekt kann später präzisiert werden.",
+    status: "provisorisch",
+  },
+];
+
+const financeWorkEntries: WorkEntry[] = [
+  { project: "Hühnerhüsli", days: 5, task: "Hühnerhüsli ufrume" },
+  { project: "Küche / Keller", days: 9.5, task: "Keller bau, Küche" },
+  { project: "Abwasser", days: 6.5, task: "Abwasser" },
+  { project: "Küche / Abwasser", days: 7, task: "Küche / Abwasser" },
+  { project: "Küche", days: 10.5, task: "Küche zügeln, Boden, Einbau" },
+  { project: "Strom Küche", days: 2, task: "Strom Küche" },
+  { project: "Noch zuordnen", days: 9, task: "Wochen ohne Projekttext" },
+];
+
+const currencyFormatter = new Intl.NumberFormat("de-CH", {
+  currency: "CHF",
+  style: "currency",
+  maximumFractionDigits: 2,
+});
+
+const numberFormatter = new Intl.NumberFormat("de-CH", {
+  maximumFractionDigits: 1,
+});
 
 function availabilityId(entry: Pick<AvailabilityEntry, "date" | "period" | "residentId">): string {
   return `${entry.date}:${entry.period}:${entry.residentId}`;
@@ -117,8 +206,89 @@ function sortResidents(residents: Resident[]): Resident[] {
   return [...residents].sort((a, b) => residentSorter.compare(a.name, b.name));
 }
 
+function appBasePath(): string {
+  const base = import.meta.env.BASE_URL || "/";
+  return base.endsWith("/") ? base : `${base}/`;
+}
+
+function pathForTab(nextTab: AppTab): string {
+  const base = appBasePath();
+  if (nextTab === "finance") {
+    return `${base.replace(/\/$/, "")}/finanzen`;
+  }
+  return base;
+}
+
+function tabFromPath(pathname = window.location.pathname): AppTab {
+  return pathname.replace(/\/$/, "").endsWith("/finanzen") ? "finance" : "calendar";
+}
+
+function formatCHF(value: number): string {
+  if (Number.isInteger(value)) {
+    return currencyFormatter.format(value).replace(".00", "");
+  }
+  return currencyFormatter.format(value);
+}
+
+function parsePositiveNumber(value: string, fallback: number): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
+}
+
+function readFinanceRules(): FinanceRuleState {
+  const raw = localStorage.getItem(financeRulesStorageKey);
+  if (!raw) return defaultFinanceRules;
+  try {
+    return { ...defaultFinanceRules, ...JSON.parse(raw) };
+  } catch {
+    return defaultFinanceRules;
+  }
+}
+
+function writeFinanceRules(rules: FinanceRuleState): void {
+  localStorage.setItem(financeRulesStorageKey, JSON.stringify(rules));
+}
+
+function buildProjectSummaries(rules: FinanceRuleState): ProjectSummary[] {
+  const summaries = new Map<string, ProjectSummary>();
+
+  function ensure(project: string): ProjectSummary {
+    const existing = summaries.get(project);
+    if (existing) return existing;
+    const next: ProjectSummary = {
+      name: project,
+      money: 0,
+      workDays: 0,
+      workValue: 0,
+      total: 0,
+      status: "provisorisch",
+      notes: [],
+    };
+    summaries.set(project, next);
+    return next;
+  }
+
+  for (const entry of financeMoneyEntries) {
+    const project = ensure(entry.project);
+    project.money += entry.amount;
+    project.notes.push(entry.note);
+    if (entry.status === "offen") project.status = "offen";
+  }
+
+  for (const entry of financeWorkEntries) {
+    const project = ensure(entry.project);
+    project.workDays += entry.days;
+    project.workValue += entry.days * rules.hoursPerDay * rules.hourlyRate;
+    project.notes.push(entry.task);
+  }
+
+  return Array.from(summaries.values())
+    .map((summary) => ({ ...summary, total: summary.money + summary.workValue }))
+    .sort((a, b) => b.total - a.total || a.name.localeCompare(b.name, "de-CH"));
+}
+
 export function App() {
-  const [tab, setTab] = useState<AppTab>("calendar");
+  const [tab, setTabState] = useState<AppTab>(() => tabFromPath());
   const [view, setView] = useState<CalendarView>("month");
   const [cursor, setCursor] = useState(() => new Date());
   const [residents, setResidents] = useState<Resident[]>([]);
@@ -134,6 +304,12 @@ export function App() {
   );
   const range = useMemo(() => rangeKeys(visibleDates), [visibleDates]);
   const availabilityById = useMemo(() => entryMap(availability), [availability]);
+
+  useEffect(() => {
+    const handlePopState = () => setTabState(tabFromPath());
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -166,6 +342,14 @@ export function App() {
       cancelled = true;
     };
   }, [activeResident, range.from, range.to]);
+
+  function switchTab(nextTab: AppTab) {
+    setTabState(nextTab);
+    const nextPath = pathForTab(nextTab);
+    if (window.location.pathname !== nextPath) {
+      window.history.pushState(null, "", nextPath);
+    }
+  }
 
   async function setAvailabilityForDay(date: string, status: AvailabilityStatus) {
     const savedEntries = await Promise.all(
@@ -265,17 +449,21 @@ export function App() {
           <h1>Bauplan</h1>
         </div>
         <nav className="tabs" aria-label="Hauptbereiche">
-          <button className={tab === "calendar" ? "active" : ""} onClick={() => setTab("calendar")}>
+          <button className={tab === "calendar" ? "active" : ""} onClick={() => switchTab("calendar")}>
             <CalendarDays size={18} />
             Kalender
           </button>
-          <button className={tab === "tasks" ? "active" : ""} onClick={() => setTab("tasks")}>
+          <button className={tab === "tasks" ? "active" : ""} onClick={() => switchTab("tasks")}>
             <ListTodo size={18} />
             Aufgaben
           </button>
-          <button className={tab === "hours" ? "active" : ""} onClick={() => setTab("hours")}>
+          <button className={tab === "hours" ? "active" : ""} onClick={() => switchTab("hours")}>
             <Clock3 size={18} />
             Stunden
+          </button>
+          <button className={tab === "finance" ? "active" : ""} onClick={() => switchTab("finance")}>
+            <Banknote size={18} />
+            Finanzen
           </button>
         </nav>
       </header>
@@ -540,6 +728,234 @@ export function App() {
           </div>
         </section>
       )}
+
+      {tab === "finance" && <FinancePage />}
     </main>
+  );
+}
+
+function FinancePage() {
+  const [rules, setRules] = useState<FinanceRuleState>(() => readFinanceRules());
+  const projects = useMemo(() => buildProjectSummaries(rules), [rules]);
+
+  const moneyTotal = financeMoneyEntries.reduce((sum, entry) => sum + entry.amount, 0);
+  const workDays = financeWorkEntries.reduce((sum, entry) => sum + entry.days, 0);
+  const workHours = workDays * rules.hoursPerDay;
+  const workTotal = workHours * rules.hourlyRate;
+  const phaseTotal = moneyTotal + workTotal;
+  const monthlyAmortization = rules.amortizationMonths > 0 ? phaseTotal / rules.amortizationMonths : 0;
+  const largestProjectTotal = Math.max(...projects.map((project) => project.total), 1);
+
+  function updateFinanceRule<Key extends keyof FinanceRuleState>(
+    key: Key,
+    value: FinanceRuleState[Key],
+  ) {
+    setRules((current) => {
+      const next = { ...current, [key]: value };
+      writeFinanceRules(next);
+      return next;
+    });
+  }
+
+  function resetFinanceRules() {
+    writeFinanceRules(defaultFinanceRules);
+    setRules(defaultFinanceRules);
+  }
+
+  return (
+    <section className="finance-page">
+      <div className="finance-hero">
+        <div>
+          <p className="eyebrow">Finanzen</p>
+          <h2>Mühle Täbu März-Juni 2026</h2>
+          <p>
+            Eine Bauphase fasst die ganze Tabelle zusammen. Projekte wie Küche, Abwasser und
+            Hühnerhüsli bleiben darunter einfache Filter.
+          </p>
+        </div>
+        <a className="sheet-link" href={financeSpreadsheetUrl} target="_blank" rel="noreferrer">
+          <FileSpreadsheet size={18} />
+          Google Sheet
+        </a>
+      </div>
+
+      <div className="finance-stats">
+        <article>
+          <ReceiptText size={18} />
+          <span>Geld</span>
+          <strong>{formatCHF(moneyTotal)}</strong>
+          <small>inkl. Poschi als offen</small>
+        </article>
+        <article>
+          <Clock3 size={18} />
+          <span>Arbeit</span>
+          <strong>{formatCHF(workTotal)}</strong>
+          <small>{numberFormatter.format(workHours)}h aus {numberFormatter.format(workDays)} Tagen</small>
+        </article>
+        <article>
+          <Layers3 size={18} />
+          <span>Bauphase total</span>
+          <strong>{formatCHF(phaseTotal)}</strong>
+          <small>provisorische Anteile</small>
+        </article>
+        <article>
+          <TableProperties size={18} />
+          <span>Amortisation</span>
+          <strong>{rules.amortizationMonths > 0 ? formatCHF(monthlyAmortization) : "keine"}</strong>
+          <small>{rules.amortizationMonths > 0 ? "pro Monat" : "nicht verteilt"}</small>
+        </article>
+      </div>
+
+      <div className="finance-grid">
+        <section className="finance-panel finance-overview">
+          <div className="panel-heading">
+            <Layers3 size={18} />
+            <h2>Bauphase</h2>
+          </div>
+          <dl className="finance-facts">
+            <div>
+              <dt>Zeitraum</dt>
+              <dd>02.03.2026 bis 30.06.2026</dd>
+            </div>
+            <div>
+              <dt>Quelle</dt>
+              <dd>Tabs Investitionen, Arbeit Wochen, Bauphasen</dd>
+            </div>
+            <div>
+              <dt>Regel</dt>
+              <dd>{rules.sharesRule}</dd>
+            </div>
+          </dl>
+          <div className="amortization-line">
+            <span>Gesamtwert</span>
+            <strong>{formatCHF(phaseTotal)}</strong>
+            <span>{rules.amortizationMonths || 0} Monate</span>
+          </div>
+        </section>
+
+        <section className="finance-panel finance-rules">
+          <div className="panel-heading">
+            <Settings2 size={18} />
+            <h2>Regeln</h2>
+          </div>
+          <label>
+            Amortisation Monate
+            <input
+              type="number"
+              min="0"
+              value={rules.amortizationMonths}
+              onChange={(event) =>
+                updateFinanceRule(
+                  "amortizationMonths",
+                  parsePositiveNumber(event.target.value, defaultFinanceRules.amortizationMonths),
+                )
+              }
+            />
+          </label>
+          <label>
+            Stunden pro Tag
+            <input
+              type="number"
+              min="0"
+              step="0.25"
+              value={rules.hoursPerDay}
+              onChange={(event) =>
+                updateFinanceRule("hoursPerDay", parsePositiveNumber(event.target.value, defaultFinanceRules.hoursPerDay))
+              }
+            />
+          </label>
+          <label>
+            CHF pro Stunde
+            <input
+              type="number"
+              min="0"
+              step="0.5"
+              value={rules.hourlyRate}
+              onChange={(event) =>
+                updateFinanceRule("hourlyRate", parsePositiveNumber(event.target.value, defaultFinanceRules.hourlyRate))
+              }
+            />
+          </label>
+          <label>
+            Anteile-Regel
+            <textarea
+              rows={3}
+              value={rules.sharesRule}
+              onChange={(event) => updateFinanceRule("sharesRule", event.target.value)}
+            />
+          </label>
+          <button className="secondary-action" onClick={resetFinanceRules} type="button">
+            <RotateCcw size={16} />
+            Standardregeln
+          </button>
+        </section>
+      </div>
+
+      <section className="finance-panel">
+        <div className="panel-heading">
+          <Banknote size={18} />
+          <h2>Projekte in der Bauphase</h2>
+        </div>
+        <div className="finance-table">
+          <table>
+            <thead>
+              <tr>
+                <th>Projekt</th>
+                <th>Geld</th>
+                <th>Arbeit</th>
+                <th>Total</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {projects.map((project) => (
+                <tr key={project.name}>
+                  <td>
+                    <strong>{project.name}</strong>
+                    <small>{project.notes[0]}</small>
+                  </td>
+                  <td>{project.money > 0 ? formatCHF(project.money) : "-"}</td>
+                  <td>
+                    {project.workDays > 0
+                      ? `${formatCHF(project.workValue)} · ${numberFormatter.format(project.workDays)} Tage`
+                      : "-"}
+                  </td>
+                  <td>
+                    <div className="project-total">
+                      <strong>{formatCHF(project.total)}</strong>
+                      <span style={{ width: `${Math.max(8, (project.total / largestProjectTotal) * 100)}%` }} />
+                    </div>
+                  </td>
+                  <td>
+                    <span className={`finance-status ${project.status}`}>{project.status}</span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section className="finance-panel finance-reading">
+        <div className="panel-heading">
+          <ReceiptText size={18} />
+          <h2>Lesart</h2>
+        </div>
+        <div className="reading-grid">
+          <p>
+            <strong>Bauphase</strong> ist das Ding, das amortisiert wird: hier die ganze Mühle-Täbu-Tabelle.
+          </p>
+          <p>
+            <strong>Projekt</strong> ordnet Beiträge ein: Küche, Abwasser, Hühnerhüsli oder noch zuordnen.
+          </p>
+          <p>
+            <strong>Aufgabe/Notiz</strong> bleibt auf der Zeile: zum Beispiel Küche einbauen.
+          </p>
+          <p>
+            <strong>Anteile</strong> bleiben provisorisch, bis der Verein die Regeln annimmt.
+          </p>
+        </div>
+      </section>
+    </section>
   );
 }
