@@ -31,10 +31,7 @@ import type {
   Task,
 } from "./types";
 
-const periods: Array<{ id: Period; label: string }> = [
-  { id: "morning", label: "AM" },
-  { id: "afternoon", label: "PM" },
-];
+const periods: Period[] = ["morning", "afternoon"];
 
 const statusOptions: Array<{ id: AvailabilityStatus; label: string }> = [
   { id: "green", label: "Free" },
@@ -172,7 +169,7 @@ export function App() {
         client.putAvailability({
           residentId: activeResident,
           date,
-          period: period.id,
+          period,
           status: paintStatus,
         }),
       ),
