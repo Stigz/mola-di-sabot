@@ -1,5 +1,6 @@
 import type {
   AppClient,
+  AppState,
   AvailabilityEntry,
   HourEntry,
   Resident,
@@ -8,13 +9,9 @@ import type {
 
 const apiBase = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "");
 const storageKey = "mola-di-sabot-state-v2";
-
-interface LocalState {
-  residents: Resident[];
-  availability: AvailabilityEntry[];
-  tasks: Task[];
-  hours: HourEntry[];
-}
+const backupPrefix = "mola-di-sabot-state-backup-";
+const sampleTaskId = "sample-roof-check";
+const sampleTaskTitle = "Dach und Wasser prüfen";
 
 const defaultResidents: Resident[] = [
   { id: "doma", name: "Domä", color: "#9333ea" },
@@ -25,13 +22,13 @@ const defaultResidents: Resident[] = [
   { id: "nico", name: "Nico", color: "#0891b2" },
 ];
 
-const initialState: LocalState = {
+const initialState: AppState = {
   residents: defaultResidents,
   availability: [],
   tasks: [
     {
-      id: "sample-roof-check",
-      title: "Roof and water check",
+      id: sampleTaskId,
+      title: sampleTaskTitle,
       status: "planned",
       estimateHours: 4,
       plannedDate: "",
@@ -41,7 +38,11 @@ const initialState: LocalState = {
   hours: [],
 };
 
-function readLocal(): LocalState {
+export function syncAvailable(): boolean {
+  return Boolean(apiBase);
+}
+
+export function readLocalState(): AppState {
   const raw = localStorage.getItem(storageKey);
   if (!raw) return initialState;
   try {
@@ -51,8 +52,60 @@ function readLocal(): LocalState {
   }
 }
 
-function writeLocal(state: LocalState): void {
+function rawLocalState(): string | null {
+  return localStorage.getItem(storageKey);
+}
+
+export function hasUserLocalData(state = readLocalState()): boolean {
+  const hasRealTasks = state.tasks.some((task) => task.id !== sampleTaskId || task.title !== sampleTaskTitle);
+  return state.availability.length > 0 || state.hours.length > 0 || hasRealTasks;
+}
+
+export function writeLocalState(state: AppState, options: { backup?: boolean } = {}): void {
+  if (options.backup) {
+    const raw = rawLocalState();
+    if (raw) {
+      localStorage.setItem(`${backupPrefix}${new Date().toISOString()}`, raw);
+    }
+  }
   localStorage.setItem(storageKey, JSON.stringify(state));
+}
+
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  if (!apiBase) {
+    throw new Error("Cloud-Speicher ist noch nicht verbunden.");
+  }
+
+  const response = await fetch(`${apiBase}${path}`, {
+    ...init,
+    headers: {
+      "Content-Type": "application/json",
+      ...(init?.headers ?? {}),
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`API-Anfrage fehlgeschlagen: ${response.status}`);
+  }
+
+  return response.json() as Promise<T>;
+}
+
+export async function saveLocalStateToCloud(): Promise<AppState> {
+  const state = { ...readLocalState(), savedAt: new Date().toISOString() };
+  const saved = await request<AppState>("/sync", {
+    method: "PUT",
+    body: JSON.stringify(state),
+  });
+  writeLocalState(saved);
+  return saved;
+}
+
+export async function loadCloudStateIntoLocal(): Promise<AppState | null> {
+  const state = await request<AppState | null>("/sync");
+  if (!state) return null;
+  writeLocalState(state, { backup: true });
+  return state;
 }
 
 function uid(prefix: string): string {
@@ -65,29 +118,29 @@ function between(date: string, from: string, to: string): boolean {
 
 class LocalClient implements AppClient {
   async listResidents(): Promise<Resident[]> {
-    return readLocal().residents;
+    return readLocalState().residents;
   }
 
   async listAvailability(from: string, to: string): Promise<AvailabilityEntry[]> {
-    return readLocal().availability.filter((entry) => between(entry.date, from, to));
+    return readLocalState().availability.filter((entry) => between(entry.date, from, to));
   }
 
   async putAvailability(entry: AvailabilityEntry): Promise<AvailabilityEntry> {
-    const state = readLocal();
+    const state = readLocalState();
     const id = `${entry.date}:${entry.period}:${entry.residentId}`;
     const saved = { ...entry, id, updatedAt: new Date().toISOString() };
     state.availability = state.availability.filter((item) => item.id !== id);
     state.availability.push(saved);
-    writeLocal(state);
+    writeLocalState(state);
     return saved;
   }
 
   async listTasks(): Promise<Task[]> {
-    return readLocal().tasks;
+    return readLocalState().tasks;
   }
 
   async saveTask(task: Partial<Task> & { title: string }): Promise<Task> {
-    const state = readLocal();
+    const state = readLocalState();
     const now = new Date().toISOString();
     const saved: Task = {
       id: task.id ?? uid("task"),
@@ -101,82 +154,27 @@ class LocalClient implements AppClient {
     };
     state.tasks = state.tasks.filter((item) => item.id !== saved.id);
     state.tasks.unshift(saved);
-    writeLocal(state);
+    writeLocalState(state);
     return saved;
   }
 
   async listHours(from: string, to: string): Promise<HourEntry[]> {
-    return readLocal().hours.filter((entry) => between(entry.date, from, to));
+    return readLocalState().hours.filter((entry) => between(entry.date, from, to));
   }
 
   async saveHour(entry: Omit<HourEntry, "id" | "createdAt">): Promise<HourEntry> {
-    const state = readLocal();
+    const state = readLocalState();
     const saved: HourEntry = {
       ...entry,
       id: uid("hour"),
       createdAt: new Date().toISOString(),
     };
     state.hours.unshift(saved);
-    writeLocal(state);
+    writeLocalState(state);
     return saved;
   }
 }
 
-class ApiClient implements AppClient {
-  private async request<T>(path: string, init?: RequestInit): Promise<T> {
-    const response = await fetch(`${apiBase}${path}`, {
-      ...init,
-      headers: {
-        "Content-Type": "application/json",
-        ...(init?.headers ?? {}),
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error(`API-Anfrage fehlgeschlagen: ${response.status}`);
-    }
-
-    return response.json() as Promise<T>;
-  }
-
-  listResidents(): Promise<Resident[]> {
-    return this.request("/residents");
-  }
-
-  listAvailability(from: string, to: string): Promise<AvailabilityEntry[]> {
-    return this.request(`/availability?from=${from}&to=${to}`);
-  }
-
-  putAvailability(entry: AvailabilityEntry): Promise<AvailabilityEntry> {
-    return this.request("/availability", {
-      method: "PUT",
-      body: JSON.stringify(entry),
-    });
-  }
-
-  listTasks(): Promise<Task[]> {
-    return this.request("/tasks");
-  }
-
-  saveTask(task: Partial<Task> & { title: string }): Promise<Task> {
-    return this.request("/tasks", {
-      method: task.id ? "PATCH" : "POST",
-      body: JSON.stringify(task),
-    });
-  }
-
-  listHours(from: string, to: string): Promise<HourEntry[]> {
-    return this.request(`/hours?from=${from}&to=${to}`);
-  }
-
-  saveHour(entry: Omit<HourEntry, "id" | "createdAt">): Promise<HourEntry> {
-    return this.request("/hours", {
-      method: "POST",
-      body: JSON.stringify(entry),
-    });
-  }
-}
-
 export function createClient(): AppClient {
-  return apiBase ? new ApiClient() : new LocalClient();
+  return new LocalClient();
 }

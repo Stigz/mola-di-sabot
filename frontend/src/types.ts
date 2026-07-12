@@ -39,6 +39,14 @@ export interface HourEntry {
   createdAt?: string;
 }
 
+export interface AppState {
+  residents: Resident[];
+  availability: AvailabilityEntry[];
+  tasks: Task[];
+  hours: HourEntry[];
+  savedAt?: string;
+}
+
 export interface AppClient {
   listResidents(): Promise<Resident[]>;
   listAvailability(from: string, to: string): Promise<AvailabilityEntry[]>;
@@ -48,4 +56,3 @@ export interface AppClient {
   listHours(from: string, to: string): Promise<HourEntry[]>;
   saveHour(entry: Omit<HourEntry, "id" | "createdAt">): Promise<HourEntry>;
 }
-

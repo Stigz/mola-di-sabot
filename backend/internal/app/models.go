@@ -57,6 +57,14 @@ type HourEntry struct {
 	CreatedAt  string  `json:"createdAt,omitempty"`
 }
 
+type AppState struct {
+	Residents    []Resident          `json:"residents"`
+	Availability []AvailabilityEntry `json:"availability"`
+	Tasks        []Task              `json:"tasks"`
+	Hours        []HourEntry         `json:"hours"`
+	SavedAt      string              `json:"savedAt,omitempty"`
+}
+
 type Store interface {
 	ListResidents(ctx context.Context) ([]Resident, error)
 	ListAvailability(ctx context.Context, from time.Time, to time.Time) ([]AvailabilityEntry, error)
@@ -65,6 +73,8 @@ type Store interface {
 	PutTask(ctx context.Context, task Task) error
 	ListHours(ctx context.Context, from time.Time, to time.Time) ([]HourEntry, error)
 	PutHour(ctx context.Context, entry HourEntry) error
+	GetSnapshot(ctx context.Context) (AppState, bool, error)
+	PutSnapshot(ctx context.Context, state AppState) (AppState, error)
 }
 
 func defaultResidents() []Resident {
@@ -80,6 +90,23 @@ func defaultResidents() []Resident {
 
 func availabilityKey(entry AvailabilityEntry) string {
 	return fmt.Sprintf("%s:%s:%s", entry.Date, entry.Period, entry.ResidentID)
+}
+
+func normalizeSnapshot(state AppState) AppState {
+	if len(state.Residents) == 0 {
+		state.Residents = defaultResidents()
+	}
+	if state.Availability == nil {
+		state.Availability = []AvailabilityEntry{}
+	}
+	if state.Tasks == nil {
+		state.Tasks = []Task{}
+	}
+	if state.Hours == nil {
+		state.Hours = []HourEntry{}
+	}
+	state.SavedAt = nowString()
+	return state
 }
 
 func parseDate(value string) (time.Time, error) {

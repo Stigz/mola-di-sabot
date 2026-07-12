@@ -14,7 +14,13 @@ import {
   Settings2,
 } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { createClient } from "./lib/api";
+import {
+  createClient,
+  hasUserLocalData,
+  loadCloudStateIntoLocal,
+  saveLocalStateToCloud,
+  syncAvailable,
+} from "./lib/api";
 import {
   addDays,
   formatDayLabel,
@@ -45,6 +51,7 @@ const statusOptions: Array<{ id: AvailabilityStatus; label: string; shortLabel: 
 ];
 
 const client = createClient();
+const cloudSyncAvailable = syncAvailable();
 const residentSorter = new Intl.Collator("de-CH", { sensitivity: "base" });
 const financeSpreadsheetUrl =
   "https://docs.google.com/spreadsheets/d/1AsAhdj9Hn7DA30unYn4Haki6sG8jufdgJFdMTpxDFR8/edit";
@@ -248,6 +255,9 @@ export function App() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [hours, setHours] = useState<HourEntry[]>([]);
   const [message, setMessage] = useState("");
+  const [syncMessage, setSyncMessage] = useState("");
+  const [syncBusy, setSyncBusy] = useState(false);
+  const [reloadNonce, setReloadNonce] = useState(0);
 
   const visibleDates = useMemo(
     () => (view === "month" ? monthGrid(cursor) : weekGrid(cursor)),
@@ -292,7 +302,62 @@ export function App() {
     return () => {
       cancelled = true;
     };
-  }, [activeResident, range.from, range.to]);
+  }, [activeResident, range.from, range.to, reloadNonce]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadCloudIfLocalIsEmpty() {
+      if (!cloudSyncAvailable || hasUserLocalData()) return;
+      try {
+        const cloudState = await loadCloudStateIntoLocal();
+        if (!cancelled && cloudState && hasUserLocalData(cloudState)) {
+          setSyncMessage("Cloud-Daten geladen.");
+          setReloadNonce((value) => value + 1);
+        }
+      } catch {
+        if (!cancelled) {
+          setSyncMessage("Cloud konnte nicht automatisch geladen werden.");
+        }
+      }
+    }
+
+    loadCloudIfLocalIsEmpty();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  async function saveToCloud() {
+    setSyncBusy(true);
+    setSyncMessage("");
+    try {
+      await saveLocalStateToCloud();
+      setSyncMessage("Cloud gespeichert.");
+    } catch (error) {
+      setSyncMessage(error instanceof Error ? error.message : "Cloud konnte nicht gespeichert werden.");
+    } finally {
+      setSyncBusy(false);
+    }
+  }
+
+  async function loadFromCloud() {
+    setSyncBusy(true);
+    setSyncMessage("");
+    try {
+      const cloudState = await loadCloudStateIntoLocal();
+      if (!cloudState) {
+        setSyncMessage("Noch keine Cloud-Daten vorhanden.");
+        return;
+      }
+      setSyncMessage("Cloud geladen. Vorheriger Browser-Stand wurde gesichert.");
+      setReloadNonce((value) => value + 1);
+    } catch (error) {
+      setSyncMessage(error instanceof Error ? error.message : "Cloud konnte nicht geladen werden.");
+    } finally {
+      setSyncBusy(false);
+    }
+  }
 
   function switchTab(nextTab: AppTab) {
     setTabState(nextTab);
@@ -437,6 +502,20 @@ export function App() {
                   </option>
                 ))}
               </select>
+            </div>
+
+            <div className="sync-panel">
+              <button className="sync-action primary" onClick={saveToCloud} disabled={!cloudSyncAvailable || syncBusy}>
+                <CheckCircle2 size={16} />
+                Cloud speichern
+              </button>
+              <button className="sync-action" onClick={loadFromCloud} disabled={!cloudSyncAvailable || syncBusy}>
+                <RotateCcw size={16} />
+                Cloud laden
+              </button>
+              <p className="sync-note">
+                {syncMessage || (cloudSyncAvailable ? "Speichern kopiert diesen Browserstand in die Cloud." : "Cloud ist noch nicht verbunden.")}
+              </p>
             </div>
 
             <div className="work-window-list">

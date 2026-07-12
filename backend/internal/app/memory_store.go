@@ -12,6 +12,7 @@ type MemoryStore struct {
 	availability map[string]AvailabilityEntry
 	tasks        map[string]Task
 	hours        map[string]HourEntry
+	snapshot     *AppState
 }
 
 func NewMemoryStore() *MemoryStore {
@@ -98,3 +99,20 @@ func (s *MemoryStore) PutHour(_ context.Context, entry HourEntry) error {
 	return nil
 }
 
+func (s *MemoryStore) GetSnapshot(context.Context) (AppState, bool, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.snapshot == nil {
+		return AppState{}, false, nil
+	}
+	return *s.snapshot, true, nil
+}
+
+func (s *MemoryStore) PutSnapshot(_ context.Context, state AppState) (AppState, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	next := normalizeSnapshot(state)
+	s.snapshot = &next
+	return next, nil
+}

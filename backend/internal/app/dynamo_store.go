@@ -24,6 +24,11 @@ type dbRecord struct {
 	Data string `dynamodbav:"Data"`
 }
 
+const (
+	snapshotPK = "APP"
+	snapshotSK = "STATE"
+)
+
 func NewDynamoStore(client *dynamodb.Client, table string) *DynamoStore {
 	return &DynamoStore{client: client, table: table}
 }
@@ -115,6 +120,32 @@ func (s *DynamoStore) PutHour(ctx context.Context, entry HourEntry) error {
 	return s.put(ctx, "HOURS#"+entry.Date, entry.ID, "hour", entry)
 }
 
+func (s *DynamoStore) GetSnapshot(ctx context.Context) (AppState, bool, error) {
+	records, err := s.queryPK(ctx, snapshotPK)
+	if err != nil {
+		return AppState{}, false, err
+	}
+	for _, record := range records {
+		if record.SK != snapshotSK {
+			continue
+		}
+		var state AppState
+		if err := json.Unmarshal([]byte(record.Data), &state); err != nil {
+			return AppState{}, false, err
+		}
+		return state, true, nil
+	}
+	return AppState{}, false, nil
+}
+
+func (s *DynamoStore) PutSnapshot(ctx context.Context, state AppState) (AppState, error) {
+	next := normalizeSnapshot(state)
+	if err := s.put(ctx, snapshotPK, snapshotSK, "snapshot", next); err != nil {
+		return AppState{}, err
+	}
+	return next, nil
+}
+
 func (s *DynamoStore) put(ctx context.Context, pk string, sk string, itemType string, payload any) error {
 	data, err := json.Marshal(payload)
 	if err != nil {
@@ -156,4 +187,3 @@ func (s *DynamoStore) queryPK(ctx context.Context, pk string) ([]dbRecord, error
 	}
 	return records, nil
 }
-

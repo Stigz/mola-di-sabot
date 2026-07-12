@@ -27,6 +27,7 @@ jobs:
       - run: npm run build
         env:
           VITE_BASE_PATH: /mola-di-sabot/
+          VITE_API_BASE_URL: https://jtng6bt2ai.execute-api.eu-central-1.amazonaws.com
       - run: cp frontend/dist/index.html frontend/dist/404.html
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
@@ -42,4 +43,3 @@ jobs:
     steps:
       - id: deployment
         uses: actions/deploy-pages@v4
-

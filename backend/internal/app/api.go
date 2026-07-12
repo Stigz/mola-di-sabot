@@ -45,6 +45,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.handleTasks(w, r)
 	case r.URL.Path == "/hours":
 		h.handleHours(w, r)
+	case r.URL.Path == "/sync":
+		h.handleSync(w, r)
 	default:
 		writeError(w, http.StatusNotFound, "not found")
 	}
@@ -168,6 +170,36 @@ func (h *Handler) handleHours(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		writeJSON(w, http.StatusOK, entry)
+	default:
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+	}
+}
+
+func (h *Handler) handleSync(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		state, ok, err := h.store.GetSnapshot(r.Context())
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		if !ok {
+			writeJSON(w, http.StatusOK, nil)
+			return
+		}
+		writeJSON(w, http.StatusOK, state)
+	case http.MethodPut:
+		var state AppState
+		if err := json.NewDecoder(r.Body).Decode(&state); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid sync payload")
+			return
+		}
+		saved, err := h.store.PutSnapshot(r.Context(), state)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, saved)
 	default:
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 	}
