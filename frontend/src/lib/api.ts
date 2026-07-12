@@ -7,7 +7,7 @@ import type {
 } from "../types";
 
 const apiBase = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "");
-const storageKey = "mola-di-sabot-state-v1";
+const storageKey = "mola-di-sabot-state-v2";
 
 interface LocalState {
   residents: Resident[];
@@ -17,12 +17,12 @@ interface LocalState {
 }
 
 const defaultResidents: Resident[] = [
-  { id: "nicolas", name: "Nicolas", color: "#2563eb" },
-  { id: "resident-2", name: "Resident 2", color: "#16a34a" },
-  { id: "resident-3", name: "Resident 3", color: "#dc2626" },
-  { id: "resident-4", name: "Resident 4", color: "#9333ea" },
-  { id: "resident-5", name: "Resident 5", color: "#ea580c" },
-  { id: "resident-6", name: "Resident 6", color: "#0891b2" },
+  { id: "doma", name: "Domä", color: "#9333ea" },
+  { id: "giulio", name: "Giulio", color: "#ea580c" },
+  { id: "lars", name: "Lars", color: "#16a34a" },
+  { id: "lisa", name: "Lisa", color: "#dc2626" },
+  { id: "nic", name: "Nic", color: "#2563eb" },
+  { id: "nico", name: "Nico", color: "#0891b2" },
 ];
 
 const initialState: LocalState = {
@@ -180,4 +180,3 @@ class ApiClient implements AppClient {
 export function createClient(): AppClient {
   return apiBase ? new ApiClient() : new LocalClient();
 }
-

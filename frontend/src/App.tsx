@@ -44,6 +44,7 @@ const statusOptions: Array<{ id: AvailabilityStatus; label: string }> = [
 ];
 
 const client = createClient();
+const residentSorter = new Intl.Collator("de-CH", { sensitivity: "base" });
 
 function availabilityId(entry: Pick<AvailabilityEntry, "date" | "period" | "residentId">): string {
   return `${entry.date}:${entry.period}:${entry.residentId}`;
@@ -82,12 +83,16 @@ function dateShift(view: CalendarView, direction: number): number {
   return view === "month" ? direction * 31 : direction * 7;
 }
 
+function sortResidents(residents: Resident[]): Resident[] {
+  return [...residents].sort((a, b) => residentSorter.compare(a.name, b.name));
+}
+
 export function App() {
   const [tab, setTab] = useState<AppTab>("calendar");
   const [view, setView] = useState<CalendarView>("month");
   const [cursor, setCursor] = useState(() => new Date());
   const [residents, setResidents] = useState<Resident[]>([]);
-  const [activeResident, setActiveResident] = useState("nicolas");
+  const [activeResident, setActiveResident] = useState("nic");
   const [paintStatus, setPaintStatus] = useState<AvailabilityStatus>("green");
   const [availability, setAvailability] = useState<AvailabilityEntry[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -100,7 +105,6 @@ export function App() {
   );
   const range = useMemo(() => rangeKeys(visibleDates), [visibleDates]);
   const availabilityById = useMemo(() => entryMap(availability), [availability]);
-  const activeResidentRecord = residents.find((resident) => resident.id === activeResident);
 
   useEffect(() => {
     let cancelled = false;
@@ -115,12 +119,13 @@ export function App() {
         ]);
 
         if (cancelled) return;
-        setResidents(nextResidents);
+        const sortedResidents = sortResidents(nextResidents);
+        setResidents(sortedResidents);
         setAvailability(nextAvailability);
         setTasks(nextTasks);
         setHours(nextHours);
-        if (nextResidents.length > 0 && !nextResidents.some((resident) => resident.id === activeResident)) {
-          setActiveResident(nextResidents[0].id);
+        if (sortedResidents.length > 0 && !sortedResidents.some((resident) => resident.id === activeResident)) {
+          setActiveResident(sortedResidents[0].id);
         }
       } catch (error) {
         setMessage(error instanceof Error ? error.message : "Could not load planning data.");
@@ -352,16 +357,7 @@ export function App() {
                     className={`day-card ${isSameMonth(date, cursor) ? "" : "outside"}`}
                   >
                     <header>
-                      <span>{formatDayLabel(date)}</span>
-                      {activeResidentRecord && (
-                        <span className="active-person">
-                          <span
-                            className="avatar small"
-                            style={{ backgroundColor: activeResidentRecord.color }}
-                          />
-                          {activeResidentRecord.name}
-                        </span>
-                      )}
+                      <span>{date.getDate()}</span>
                     </header>
 
                     {periods.map((period) => {
@@ -376,7 +372,7 @@ export function App() {
                         >
                           <span>{period.label}</span>
                           <strong>{counts.green}</strong>
-                          <small>{counts.yellow} maybe</small>
+                          <small>Y {counts.yellow}</small>
                           <div className="dots" aria-label="Resident statuses">
                             {residents.map((resident) => (
                               <span
@@ -526,4 +522,3 @@ export function App() {
     </main>
   );
 }
-

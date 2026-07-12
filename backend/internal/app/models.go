@@ -69,12 +69,12 @@ type Store interface {
 
 func defaultResidents() []Resident {
 	return []Resident{
-		{ID: "nicolas", Name: "Nicolas", Color: "#2563eb"},
-		{ID: "resident-2", Name: "Resident 2", Color: "#16a34a"},
-		{ID: "resident-3", Name: "Resident 3", Color: "#dc2626"},
-		{ID: "resident-4", Name: "Resident 4", Color: "#9333ea"},
-		{ID: "resident-5", Name: "Resident 5", Color: "#ea580c"},
-		{ID: "resident-6", Name: "Resident 6", Color: "#0891b2"},
+		{ID: "doma", Name: "Domä", Color: "#9333ea"},
+		{ID: "giulio", Name: "Giulio", Color: "#ea580c"},
+		{ID: "lars", Name: "Lars", Color: "#16a34a"},
+		{ID: "lisa", Name: "Lisa", Color: "#dc2626"},
+		{ID: "nic", Name: "Nic", Color: "#2563eb"},
+		{ID: "nico", Name: "Nico", Color: "#0891b2"},
 	}
 }
 
@@ -100,4 +100,3 @@ func dateRange(from time.Time, to time.Time) []time.Time {
 func nowString() string {
 	return time.Now().UTC().Format(time.RFC3339)
 }
-
