@@ -16,25 +16,27 @@ This keeps the visible website cheap and simple while avoiding a finance setup t
 
 ## App Shape
 
-The app has four working areas:
+The visible app has three working areas:
 
 - Calendar: month and week views with simple full-day availability per resident. The backend still stores morning/afternoon so future split days or imports can be represented.
 - Tasks: simple work packages with estimates and planned dates.
 - Hours: per-person hour entries tied to tasks or general work.
-- Finanzen: Bauphase + Projekt view for provisional money/work shares and simple amortisation.
+
+The finance view exists as a hidden direct route at `/mola-di-sabot/finanzen`. It is intentionally not shown in the main navigation.
 
 The frontend can run in browser-local mode without an API. Setting `VITE_API_BASE_URL` moves reads and writes for the planning data to the Go backend.
 
 ## Finance Model
 
-Finance is deliberately sheet-first:
+Finance is deliberately sheet-first and simple:
 
 - `Bauphase` is the amortisable whole, for example `Mühle Täbu März-Juni 2026`.
-- `Projekt` is the category inside a Bauphase, for example `Küche`, `Abwasser`, or `Hühnerhüsli`.
-- `Aufgabe/Notiz` stays on the work row and is not a separate finance object.
+- `Material / Position` keeps separate rows for purchases such as `Küche`, `Poschi`, and `Bauhaus Einkauf`.
+- `Aufgabe` is only a sublist explaining the work rows.
+- Work value is calculated once at Bauphase level, not per project or per task.
 - Money and work produce provisional Anteile until the Verein accepts the rules.
 
-The linked Google Sheet now keeps the existing `Investitionen` and `Arbeit Wochen` tabs and adds one `Bauphasen` tab. Existing rows are tagged with Bauphase and Projekt columns instead of being moved into a new accounting system.
+The linked Google Sheet keeps the existing `Investitionen` and `Arbeit Wochen` tabs and adds one `Bauphasen` tab. Existing rows are tagged with Bauphase, while material and task labels remain simple helper fields.
 
 Current finance defaults:
 
@@ -43,7 +45,7 @@ Current finance defaults:
 - `25 CHF` per hour.
 - `60` months amortisation.
 - Work total from the current sheet: `49.5` days / `396` hours / `9'900 CHF` at the default rule.
-- Money total from the current sheet: `3'126 CHF`, with `Poschi` still politically/legally open.
+- Material total from the current sheet: `3'126 CHF`, with `Poschi` still politically/legally open.
 
 ## Data Model
 
@@ -58,4 +60,4 @@ This is deliberately compact for six people and keeps AWS costs low.
 
 ## Routing
 
-GitHub Pages deploy copies `index.html` to `404.html`, so direct SPA routes such as `/mola-di-sabot/finanzen` load the app and select the finance view.
+GitHub Pages deploy copies `index.html` to `404.html`, so the hidden direct route `/mola-di-sabot/finanzen` loads the app and selects the finance view.
