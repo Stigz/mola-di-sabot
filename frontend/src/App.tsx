@@ -33,15 +33,20 @@ import type {
 
 const periods: Period[] = ["morning", "afternoon"];
 
-const statusOptions: Array<{ id: AvailabilityStatus; label: string }> = [
-  { id: "green", label: "Free" },
-  { id: "yellow", label: "Maybe" },
-  { id: "red", label: "No" },
+const statusOptions: Array<{ id: AvailabilityStatus; label: string; shortLabel: string }> = [
+  { id: "red", label: "Nein", shortLabel: "N" },
+  { id: "yellow", label: "Vielleicht", shortLabel: "V" },
+  { id: "green", label: "Ja", shortLabel: "J" },
 ];
 
 const client = createClient();
 const residentSorter = new Intl.Collator("de-CH", { sensitivity: "base" });
 type DayStatus = AvailabilityStatus | "mixed" | "empty";
+const taskStatusLabels: Record<Task["status"], string> = {
+  planned: "geplant",
+  active: "aktiv",
+  done: "erledigt",
+};
 
 function availabilityId(entry: Pick<AvailabilityEntry, "date" | "period" | "residentId">): string {
   return `${entry.date}:${entry.period}:${entry.residentId}`;
@@ -118,7 +123,6 @@ export function App() {
   const [cursor, setCursor] = useState(() => new Date());
   const [residents, setResidents] = useState<Resident[]>([]);
   const [activeResident, setActiveResident] = useState("nic");
-  const [paintStatus, setPaintStatus] = useState<AvailabilityStatus>("green");
   const [availability, setAvailability] = useState<AvailabilityEntry[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [hours, setHours] = useState<HourEntry[]>([]);
@@ -153,7 +157,7 @@ export function App() {
           setActiveResident(sortedResidents[0].id);
         }
       } catch (error) {
-        setMessage(error instanceof Error ? error.message : "Could not load planning data.");
+        setMessage(error instanceof Error ? error.message : "Planungsdaten konnten nicht geladen werden.");
       }
     }
 
@@ -163,14 +167,14 @@ export function App() {
     };
   }, [activeResident, range.from, range.to]);
 
-  async function setAvailabilityForDay(date: string) {
+  async function setAvailabilityForDay(date: string, status: AvailabilityStatus) {
     const savedEntries = await Promise.all(
       periods.map((period) =>
         client.putAvailability({
           residentId: activeResident,
           date,
           period,
-          status: paintStatus,
+          status,
         }),
       ),
     );
@@ -258,20 +262,20 @@ export function App() {
       <header className="topbar">
         <div>
           <p className="eyebrow">Mola di Sabot</p>
-          <h1>Build Planner</h1>
+          <h1>Bauplan</h1>
         </div>
-        <nav className="tabs" aria-label="Main sections">
+        <nav className="tabs" aria-label="Hauptbereiche">
           <button className={tab === "calendar" ? "active" : ""} onClick={() => setTab("calendar")}>
             <CalendarDays size={18} />
-            Calendar
+            Kalender
           </button>
           <button className={tab === "tasks" ? "active" : ""} onClick={() => setTab("tasks")}>
             <ListTodo size={18} />
-            Tasks
+            Aufgaben
           </button>
           <button className={tab === "hours" ? "active" : ""} onClick={() => setTab("hours")}>
             <Clock3 size={18} />
-            Hours
+            Stunden
           </button>
         </nav>
       </header>
@@ -286,7 +290,7 @@ export function App() {
         <section className="calendar-layout">
           <aside className="side-panel">
             <div className="field">
-              <label htmlFor="resident">Who</label>
+              <label htmlFor="resident">Person</label>
               <select
                 id="resident"
                 value={activeResident}
@@ -300,33 +304,21 @@ export function App() {
               </select>
             </div>
 
-            <div className="status-picker" aria-label="Availability status">
-              {statusOptions.map((option) => (
-                <button
-                  key={option.id}
-                  className={`status-button ${option.id} ${paintStatus === option.id ? "active" : ""}`}
-                  onClick={() => setPaintStatus(option.id)}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
-
             <div className="work-window-list">
               <div className="panel-title">
                 <CheckCircle2 size={17} />
-                Work Windows
+                Gute Tage
               </div>
               {workWindows.length === 0 ? (
-                <p className="muted">No strong overlap in this range yet.</p>
+                <p className="muted">Noch keine klare Überschneidung in diesem Zeitraum.</p>
               ) : (
                 workWindows.map((window) => (
                   <div key={toDateKey(window.date)} className="window-row">
                     <strong>{formatDayLabel(window.date)}</strong>
                     <span>
-                      {window.green} free
-                      {window.yellow > 0 ? `, ${window.yellow} maybe` : ""}
-                      {window.split > 0 ? `, ${window.split} split` : ""}
+                      {window.green} ja
+                      {window.yellow > 0 ? `, ${window.yellow} vielleicht` : ""}
+                      {window.split > 0 ? `, ${window.split} geteilt` : ""}
                     </span>
                     <small>{window.people}</small>
                   </div>
@@ -338,30 +330,30 @@ export function App() {
           <section className="planner">
             <div className="calendar-toolbar">
               <div className="month-controls">
-                <button className="icon-button" onClick={() => moveCursor(-1)} aria-label="Previous">
+                <button className="icon-button" onClick={() => moveCursor(-1)} aria-label="Zurück">
                   <ChevronLeft size={18} />
                 </button>
                 <h2>{formatMonthLabel(cursor)}</h2>
-                <button className="icon-button" onClick={() => moveCursor(1)} aria-label="Next">
+                <button className="icon-button" onClick={() => moveCursor(1)} aria-label="Weiter">
                   <ChevronRight size={18} />
                 </button>
-                <button className="icon-button" onClick={() => setCursor(new Date())} aria-label="Today">
+                <button className="icon-button" onClick={() => setCursor(new Date())} aria-label="Heute">
                   <RotateCcw size={17} />
                 </button>
               </div>
 
-              <div className="segmented" aria-label="Calendar view">
+              <div className="segmented" aria-label="Kalenderansicht">
                 <button className={view === "month" ? "active" : ""} onClick={() => setView("month")}>
-                  Month
+                  Monat
                 </button>
                 <button className={view === "week" ? "active" : ""} onClick={() => setView("week")}>
-                  Week
+                  Woche
                 </button>
               </div>
             </div>
 
             <div className={`calendar-grid ${view}`}>
-              {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day) => (
+              {["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"].map((day) => (
                 <div className="weekday" key={day}>
                   {day}
                 </div>
@@ -377,40 +369,54 @@ export function App() {
                   >
                     <header>
                       <span>{date.getDate()}</span>
-                      {counts.split > 0 && <em>split</em>}
+                      {counts.split > 0 && <em>geteilt</em>}
                     </header>
 
-                    <button
+                    <div
                       className={`day-cell ${activeDay.status} ${activeDay.split ? "split" : ""}`}
-                      onClick={() => setAvailabilityForDay(dateKey)}
                     >
                       <span className="availability-score">
                         <strong>{counts.green}</strong>
-                        <small>free</small>
+                        <small>ja</small>
                       </span>
                       <span className="day-secondary">
                         {counts.yellow > 0
-                          ? `${counts.yellow} maybe`
+                          ? `${counts.yellow} vielleicht`
                           : counts.split > 0
-                            ? `${counts.split} split`
+                            ? `${counts.split} geteilt`
                             : counts.red > 0
-                              ? `${counts.red} no`
+                              ? `${counts.red} nein`
                               : ""}
                       </span>
-                      <div className="dots" aria-label="Resident statuses">
+                      <div className="day-zones" aria-label={`${dateKey} für ${activeResident} setzen`}>
+                        {statusOptions.map((option) => (
+                          <button
+                            key={option.id}
+                            className={`day-zone ${option.id} ${activeDay.status === option.id && !activeDay.split ? "selected" : ""}`}
+                            onClick={() => setAvailabilityForDay(dateKey, option.id)}
+                            title={`${option.label} setzen`}
+                            aria-label={`${option.label} setzen`}
+                          >
+                            {option.shortLabel}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="dots" aria-label="Status der Personen">
                         {residents.map((resident) => {
                           const day = dayAvailabilityFor(availabilityById, dateKey, resident.id);
+                          const statusLabel =
+                            statusOptions.find((option) => option.id === day.status)?.label ?? "offen";
                           return (
                             <span
                               key={resident.id}
-                              title={`${resident.name}: ${day.split ? "split" : day.status}`}
+                              title={`${resident.name}: ${day.split ? "geteilt" : statusLabel}`}
                               className={`dot ${day.status} ${day.split ? "split" : ""}`}
                               style={{ "--resident-color": resident.color } as React.CSSProperties}
                             />
                           );
                         })}
                       </div>
-                    </button>
+                    </div>
                   </article>
                 );
               })}
@@ -422,39 +428,39 @@ export function App() {
       {tab === "tasks" && (
         <section className="data-layout">
           <form className="entry-panel" onSubmit={createTask}>
-            <h2>New Task</h2>
+            <h2>Neue Aufgabe</h2>
             <label>
-              Title
-              <input name="title" placeholder="Stone wall, roof beam, drainage..." />
+              Titel
+              <input name="title" placeholder="Steinmauer, Dachbalken, Drainage..." />
             </label>
             <label>
-              Estimate
+              Schätzung
               <input name="estimateHours" type="number" min="0" step="0.5" placeholder="4" />
             </label>
             <label>
-              Planned date
+              Geplanter Tag
               <input name="plannedDate" type="date" />
             </label>
             <label>
-              Notes
+              Notizen
               <textarea name="notes" rows={4} />
             </label>
             <button className="primary-action">
               <Plus size={18} />
-              Add Task
+              Aufgabe hinzufügen
             </button>
           </form>
 
           <div className="table-panel">
-            <h2>Tasks</h2>
+            <h2>Aufgaben</h2>
             <div className="task-list">
               {tasks.map((task) => (
                 <article key={task.id} className="task-card">
                   <div>
                     <strong>{task.title}</strong>
-                    <span>{task.estimateHours || 0}h estimate</span>
+                    <span>{task.estimateHours || 0}h geschätzt</span>
                   </div>
-                  <span className={`pill ${task.status}`}>{task.status}</span>
+                  <span className={`pill ${task.status}`}>{taskStatusLabels[task.status]}</span>
                 </article>
               ))}
             </div>
@@ -465,9 +471,9 @@ export function App() {
       {tab === "hours" && (
         <section className="data-layout">
           <form className="entry-panel" onSubmit={createHour}>
-            <h2>Log Hours</h2>
+            <h2>Stunden eintragen</h2>
             <label>
-              Resident
+              Person
               <select name="residentId" defaultValue={activeResident}>
                 {residents.map((resident) => (
                   <option key={resident.id} value={resident.id}>
@@ -477,9 +483,9 @@ export function App() {
               </select>
             </label>
             <label>
-              Task
+              Aufgabe
               <select name="taskId">
-                <option value="">General work</option>
+                <option value="">Allgemeine Arbeit</option>
                 {tasks.map((task) => (
                   <option key={task.id} value={task.id}>
                     {task.title}
@@ -488,25 +494,25 @@ export function App() {
               </select>
             </label>
             <label>
-              Date
+              Datum
               <input name="date" type="date" defaultValue={toDateKey(new Date())} />
             </label>
             <label>
-              Hours
+              Stunden
               <input name="hours" type="number" min="0" step="0.25" placeholder="3.5" />
             </label>
             <label>
-              Notes
+              Notizen
               <textarea name="notes" rows={4} />
             </label>
             <button className="primary-action">
               <Plus size={18} />
-              Add Hours
+              Stunden hinzufügen
             </button>
           </form>
 
           <div className="table-panel">
-            <h2>Totals</h2>
+            <h2>Summen</h2>
             <div className="totals-grid">
               {totalsByResident.map(({ resident, hours }) => (
                 <div className="total-card" key={resident.id}>
@@ -517,15 +523,15 @@ export function App() {
               ))}
             </div>
 
-            <h2>Recent Entries</h2>
+            <h2>Letzte Einträge</h2>
             <div className="task-list">
               {hours.map((entry) => (
                 <article className="task-card" key={entry.id}>
                   <div>
                     <strong>
-                      {residents.find((resident) => resident.id === entry.residentId)?.name ?? "Resident"}
+                      {residents.find((resident) => resident.id === entry.residentId)?.name ?? "Person"}
                     </strong>
-                    <span>{entry.date} · {entry.notes || "General work"}</span>
+                    <span>{entry.date} · {entry.notes || "Allgemeine Arbeit"}</span>
                   </div>
                   <span className="pill active">{entry.hours}h</span>
                 </article>

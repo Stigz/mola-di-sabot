@@ -35,7 +35,7 @@ const initialState: LocalState = {
       status: "planned",
       estimateHours: 4,
       plannedDate: "",
-      notes: "Replace this with the first real work package.",
+      notes: "Ersetze das mit der ersten echten Aufgabe.",
     },
   ],
   hours: [],
@@ -133,7 +133,7 @@ class ApiClient implements AppClient {
     });
 
     if (!response.ok) {
-      throw new Error(`API request failed: ${response.status}`);
+      throw new Error(`API-Anfrage fehlgeschlagen: ${response.status}`);
     }
 
     return response.json() as Promise<T>;

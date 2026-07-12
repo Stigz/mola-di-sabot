@@ -44,11 +44,11 @@ export function weekGrid(date: Date): Date[] {
 }
 
 export function formatDayLabel(date: Date): string {
-  return new Intl.DateTimeFormat("en", { weekday: "short", day: "numeric" }).format(date);
+  return new Intl.DateTimeFormat("de-CH", { weekday: "short", day: "numeric" }).format(date);
 }
 
 export function formatMonthLabel(date: Date): string {
-  return new Intl.DateTimeFormat("en", { month: "long", year: "numeric" }).format(date);
+  return new Intl.DateTimeFormat("de-CH", { month: "long", year: "numeric" }).format(date);
 }
 
 export function isSameMonth(a: Date, b: Date): boolean {
@@ -61,4 +61,3 @@ export function rangeKeys(dates: Date[]): { from: string; to: string } {
     to: toDateKey(dates[dates.length - 1]),
   };
 }
-
