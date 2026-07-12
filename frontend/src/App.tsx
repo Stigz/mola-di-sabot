@@ -963,6 +963,35 @@ function FinancePage() {
         </section>
       </div>
 
+      <section className="finance-panel finance-guide">
+        <div className="panel-heading">
+          <FileSpreadsheet size={18} />
+          <h2>Kurz-Anleitung</h2>
+        </div>
+        <ol className="guide-list">
+          <li>
+            <strong>Bauphase setzen:</strong>
+            <span>Ein Zeitraum bündelt Material, Arbeit und offene Fragen.</span>
+          </li>
+          <li>
+            <strong>Material prüfen:</strong>
+            <span>Beleg, Betrag und Eigentum sauber festhalten.</span>
+          </li>
+          <li>
+            <strong>Arbeit zählen:</strong>
+            <span>Tage sammeln; der CHF-Wert kommt aus den Regeln.</span>
+          </li>
+          <li>
+            <strong>Regeln anpassen:</strong>
+            <span>Stunden, Stundensatz und Amortisation provisorisch setzen.</span>
+          </li>
+          <li>
+            <strong>Beschluss machen:</strong>
+            <span>Wenn alle einverstanden sind, offene Punkte aktualisieren.</span>
+          </li>
+        </ol>
+      </section>
+
       <section className="finance-panel finance-reading">
         <div className="panel-heading">
           <ReceiptText size={18} />
