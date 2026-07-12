@@ -15,7 +15,7 @@ This keeps the visible website cheap and simple while keeping the parts with pri
 
 The first version has three working areas:
 
-- Calendar: month and week views with AM/PM availability per resident.
+- Calendar: month and week views with simple full-day availability per resident. The backend still stores morning/afternoon so future split days or imports can be represented.
 - Tasks: simple work packages with estimates and planned dates.
 - Hours: per-person hour entries tied to tasks or general work.
 
@@ -31,4 +31,3 @@ DynamoDB uses one table with `PK` and `SK` keys:
 - `HOURS#YYYY-MM-DD` stores hour entries.
 
 This is deliberately compact for six people and keeps AWS costs low.
-

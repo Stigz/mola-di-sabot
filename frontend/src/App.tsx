@@ -7,7 +7,6 @@ import {
   ListTodo,
   Plus,
   RotateCcw,
-  UsersRound,
 } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { createClient } from "./lib/api";
@@ -38,13 +37,14 @@ const periods: Array<{ id: Period; label: string }> = [
 ];
 
 const statusOptions: Array<{ id: AvailabilityStatus; label: string }> = [
-  { id: "green", label: "Green" },
-  { id: "yellow", label: "Yellow" },
-  { id: "red", label: "Red" },
+  { id: "green", label: "Free" },
+  { id: "yellow", label: "Maybe" },
+  { id: "red", label: "No" },
 ];
 
 const client = createClient();
 const residentSorter = new Intl.Collator("de-CH", { sensitivity: "base" });
+type DayStatus = AvailabilityStatus | "mixed" | "empty";
 
 function availabilityId(entry: Pick<AvailabilityEntry, "date" | "period" | "residentId">): string {
   return `${entry.date}:${entry.period}:${entry.residentId}`;
@@ -54,29 +54,57 @@ function entryMap(entries: AvailabilityEntry[]): Map<string, AvailabilityEntry> 
   return new Map(entries.map((entry) => [entry.id ?? availabilityId(entry), entry]));
 }
 
-function statusCounts(
-  entries: AvailabilityEntry[],
-  date: string,
-  period: Period,
-): Record<AvailabilityStatus, number> {
-  return entries
-    .filter((entry) => entry.date === date && entry.period === period)
-    .reduce(
-      (counts, entry) => {
-        counts[entry.status] += 1;
-        return counts;
-      },
-      { green: 0, yellow: 0, red: 0 },
-    );
-}
-
-function statusFor(
+function periodStatusFor(
   map: Map<string, AvailabilityEntry>,
   date: string,
   period: Period,
   residentId: string,
 ): AvailabilityStatus | "empty" {
   return map.get(availabilityId({ date, period, residentId }))?.status ?? "empty";
+}
+
+function dayAvailabilityFor(
+  map: Map<string, AvailabilityEntry>,
+  date: string,
+  residentId: string,
+): { status: DayStatus; split: boolean } {
+  const morning = periodStatusFor(map, date, "morning", residentId);
+  const afternoon = periodStatusFor(map, date, "afternoon", residentId);
+
+  if (morning === "empty" && afternoon === "empty") {
+    return { status: "empty", split: false };
+  }
+  if (morning === afternoon) {
+    return { status: morning, split: false };
+  }
+  if (morning === "empty") {
+    return { status: afternoon, split: true };
+  }
+  if (afternoon === "empty") {
+    return { status: morning, split: true };
+  }
+  return { status: "mixed", split: true };
+}
+
+function dayCounts(
+  map: Map<string, AvailabilityEntry>,
+  date: string,
+  residents: Resident[],
+): Record<AvailabilityStatus, number> & { split: number } {
+  return residents.reduce(
+    (counts, resident) => {
+      const day = dayAvailabilityFor(map, date, resident.id);
+      if (day.split) {
+        counts.split += 1;
+        return counts;
+      }
+      if (day.status !== "empty" && day.status !== "mixed") {
+        counts[day.status] += 1;
+      }
+      return counts;
+    },
+    { green: 0, yellow: 0, red: 0, split: 0 },
+  );
 }
 
 function dateShift(view: CalendarView, direction: number): number {
@@ -138,17 +166,22 @@ export function App() {
     };
   }, [activeResident, range.from, range.to]);
 
-  async function setAvailabilityFor(date: string, period: Period) {
-    const saved = await client.putAvailability({
-      residentId: activeResident,
-      date,
-      period,
-      status: paintStatus,
-    });
+  async function setAvailabilityForDay(date: string) {
+    const savedEntries = await Promise.all(
+      periods.map((period) =>
+        client.putAvailability({
+          residentId: activeResident,
+          date,
+          period: period.id,
+          status: paintStatus,
+        }),
+      ),
+    );
+    const savedIds = new Set(savedEntries.map((entry) => entry.id ?? availabilityId(entry)));
 
     setAvailability((current) => [
-      ...current.filter((entry) => (entry.id ?? availabilityId(entry)) !== (saved.id ?? availabilityId(saved))),
-      saved,
+      ...current.filter((entry) => !savedIds.has(entry.id ?? availabilityId(entry))),
+      ...savedEntries,
     ]);
   }
 
@@ -193,25 +226,25 @@ export function App() {
   }
 
   const workWindows = visibleDates
-    .flatMap((date) =>
-      periods.map((period) => {
-        const key = toDateKey(date);
-        const counts = statusCounts(availability, key, period.id);
-        const people = availability
-          .filter((entry) => entry.date === key && entry.period === period.id && entry.status === "green")
-          .map((entry) => residents.find((resident) => resident.id === entry.residentId)?.name)
-          .filter(Boolean)
-          .join(", ");
+    .map((date) => {
+      const key = toDateKey(date);
+      const counts = dayCounts(availabilityById, key, residents);
+      const people = residents
+        .filter((resident) => {
+          const day = dayAvailabilityFor(availabilityById, key, resident.id);
+          return day.status === "green" && !day.split;
+        })
+        .map((resident) => resident.name)
+        .join(", ");
 
-        return {
-          date,
-          period: period.label,
-          green: counts.green,
-          yellow: counts.yellow,
-          people,
-        };
-      }),
-    )
+      return {
+        date,
+        green: counts.green,
+        yellow: counts.yellow,
+        split: counts.split,
+        people,
+      };
+    })
     .filter((window) => window.green >= 2)
     .sort((a, b) => b.green - a.green || b.yellow - a.yellow)
     .slice(0, 8);
@@ -256,7 +289,7 @@ export function App() {
         <section className="calendar-layout">
           <aside className="side-panel">
             <div className="field">
-              <label htmlFor="resident">Resident</label>
+              <label htmlFor="resident">Who</label>
               <select
                 id="resident"
                 value={activeResident}
@@ -282,23 +315,6 @@ export function App() {
               ))}
             </div>
 
-            <div className="resident-list">
-              <div className="panel-title">
-                <UsersRound size={17} />
-                Residents
-              </div>
-              {residents.map((resident) => (
-                <button
-                  key={resident.id}
-                  className={`resident-row ${resident.id === activeResident ? "active" : ""}`}
-                  onClick={() => setActiveResident(resident.id)}
-                >
-                  <span className="avatar" style={{ backgroundColor: resident.color }} />
-                  {resident.name}
-                </button>
-              ))}
-            </div>
-
             <div className="work-window-list">
               <div className="panel-title">
                 <CheckCircle2 size={17} />
@@ -308,9 +324,13 @@ export function App() {
                 <p className="muted">No strong overlap in this range yet.</p>
               ) : (
                 workWindows.map((window) => (
-                  <div key={`${toDateKey(window.date)}-${window.period}`} className="window-row">
-                    <strong>{formatDayLabel(window.date)} {window.period}</strong>
-                    <span>{window.green} green, {window.yellow} yellow</span>
+                  <div key={toDateKey(window.date)} className="window-row">
+                    <strong>{formatDayLabel(window.date)}</strong>
+                    <span>
+                      {window.green} free
+                      {window.yellow > 0 ? `, ${window.yellow} maybe` : ""}
+                      {window.split > 0 ? `, ${window.split} split` : ""}
+                    </span>
                     <small>{window.people}</small>
                   </div>
                 ))
@@ -351,6 +371,8 @@ export function App() {
               ))}
               {visibleDates.map((date) => {
                 const dateKey = toDateKey(date);
+                const counts = dayCounts(availabilityById, dateKey, residents);
+                const activeDay = dayAvailabilityFor(availabilityById, dateKey, activeResident);
                 return (
                   <article
                     key={dateKey}
@@ -358,44 +380,40 @@ export function App() {
                   >
                     <header>
                       <span>{date.getDate()}</span>
+                      {counts.split > 0 && <em>split</em>}
                     </header>
 
-                    {periods.map((period) => {
-                      const counts = statusCounts(availability, dateKey, period.id);
-                      const activeStatus = statusFor(availabilityById, dateKey, period.id, activeResident);
-
-                      return (
-                        <button
-                          key={period.id}
-                          className={`period-cell ${activeStatus}`}
-                          onClick={() => setAvailabilityFor(dateKey, period.id)}
-                        >
-                          <span>{period.label}</span>
-                          <strong>{counts.green}</strong>
-                          <small>Y {counts.yellow}</small>
-                          <div className="dots" aria-label="Resident statuses">
-                            {residents.map((resident) => (
-                              <span
-                                key={resident.id}
-                                title={`${resident.name}: ${statusFor(
-                                  availabilityById,
-                                  dateKey,
-                                  period.id,
-                                  resident.id,
-                                )}`}
-                                className={`dot ${statusFor(
-                                  availabilityById,
-                                  dateKey,
-                                  period.id,
-                                  resident.id,
-                                )}`}
-                                style={{ "--resident-color": resident.color } as React.CSSProperties}
-                              />
-                            ))}
-                          </div>
-                        </button>
-                      );
-                    })}
+                    <button
+                      className={`day-cell ${activeDay.status} ${activeDay.split ? "split" : ""}`}
+                      onClick={() => setAvailabilityForDay(dateKey)}
+                    >
+                      <span className="availability-score">
+                        <strong>{counts.green}</strong>
+                        <small>free</small>
+                      </span>
+                      <span className="day-secondary">
+                        {counts.yellow > 0
+                          ? `${counts.yellow} maybe`
+                          : counts.split > 0
+                            ? `${counts.split} split`
+                            : counts.red > 0
+                              ? `${counts.red} no`
+                              : ""}
+                      </span>
+                      <div className="dots" aria-label="Resident statuses">
+                        {residents.map((resident) => {
+                          const day = dayAvailabilityFor(availabilityById, dateKey, resident.id);
+                          return (
+                            <span
+                              key={resident.id}
+                              title={`${resident.name}: ${day.split ? "split" : day.status}`}
+                              className={`dot ${day.status} ${day.split ? "split" : ""}`}
+                              style={{ "--resident-color": resident.color } as React.CSSProperties}
+                            />
+                          );
+                        })}
+                      </div>
+                    </button>
                   </article>
                 );
               })}

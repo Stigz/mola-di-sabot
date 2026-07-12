@@ -112,7 +112,7 @@ h2 {
 .calendar-layout,
 .data-layout {
   display: grid;
-  grid-template-columns: 228px minmax(0, 1fr);
+  grid-template-columns: 210px minmax(0, 1fr);
   gap: 12px;
   align-items: start;
 }
@@ -186,39 +186,9 @@ textarea {
   font-weight: 900;
 }
 
-.resident-list,
 .work-window-list {
   display: grid;
   gap: 6px;
-}
-
-.resident-list {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.resident-list .panel-title {
-  grid-column: 1 / -1;
-}
-
-.resident-row {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  width: 100%;
-  min-height: 30px;
-  padding: 5px 7px;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  background: #f8fafc;
-  color: #334155;
-  text-align: left;
-  font-size: 0.86rem;
-  font-weight: 800;
-}
-
-.resident-row.active {
-  border-color: #93c5fd;
-  background: #eff6ff;
 }
 
 .avatar {
@@ -288,12 +258,12 @@ textarea {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 4px;
-  min-width: 742px;
+  min-width: 680px;
 }
 
 .calendar-grid.week {
   grid-template-columns: repeat(7, minmax(0, 1fr));
-  min-width: 742px;
+  min-width: 680px;
 }
 
 .weekday {
@@ -304,7 +274,7 @@ textarea {
 }
 
 .day-card {
-  min-height: 112px;
+  min-height: 78px;
   padding: 6px;
   border: 1px solid #d9e0ea;
   border-radius: 8px;
@@ -312,7 +282,7 @@ textarea {
 }
 
 .calendar-grid.week .day-card {
-  min-height: 148px;
+  min-height: 104px;
 }
 
 .day-card.outside {
@@ -330,14 +300,21 @@ textarea {
   font-weight: 900;
 }
 
-.period-cell {
+.day-card header em {
+  color: #92400e;
+  font-size: 0.62rem;
+  font-style: normal;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.day-cell {
   display: grid;
-  grid-template-columns: 24px 1fr;
+  grid-template-columns: 1fr auto;
   align-items: center;
   width: 100%;
-  min-height: 43px;
-  margin-top: 4px;
-  padding: 5px;
+  min-height: 48px;
+  padding: 6px;
   border: 1px solid #e2e8f0;
   border-radius: 6px;
   background: #ffffff;
@@ -345,37 +322,53 @@ textarea {
   text-align: left;
 }
 
-.period-cell.green {
+.day-cell.green {
   border-color: #86efac;
   background: #f0fdf4;
 }
 
-.period-cell.yellow {
+.day-cell.yellow {
   border-color: #fcd34d;
   background: #fffbeb;
 }
 
-.period-cell.red {
+.day-cell.red {
   border-color: #fca5a5;
   background: #fff1f2;
 }
 
-.period-cell span {
-  font-size: 0.74rem;
-  font-weight: 900;
+.day-cell.mixed,
+.day-cell.split {
+  border-color: #fcd34d;
+  background: repeating-linear-gradient(
+    135deg,
+    #fffbeb 0,
+    #fffbeb 8px,
+    #ffffff 8px,
+    #ffffff 16px
+  );
 }
 
-.period-cell strong {
-  justify-self: end;
+.availability-score {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.availability-score strong {
   color: #166534;
-  font-size: 0.92rem;
+  font-size: 1.05rem;
 }
 
-.period-cell small {
-  grid-column: 2;
-  justify-self: end;
+.availability-score small,
+.day-secondary {
   color: #667085;
   font-size: 0.68rem;
+  font-weight: 800;
+}
+
+.day-secondary {
+  justify-self: end;
 }
 
 .dots {
@@ -402,6 +395,11 @@ textarea {
 
 .dot.red {
   background: #ef4444;
+}
+
+.dot.mixed,
+.dot.split {
+  background: linear-gradient(90deg, #22c55e 0 50%, #f59e0b 50% 100%);
 }
 
 .primary-action {
