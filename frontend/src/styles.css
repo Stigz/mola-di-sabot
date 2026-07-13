@@ -179,6 +179,42 @@ textarea {
   gap: 6px;
 }
 
+.calendar-help {
+  display: grid;
+  gap: 5px;
+  padding: 9px 10px;
+  border-left: 3px solid #94a3b8;
+  background: #f8fafc;
+  color: #475569;
+  font-size: 0.76rem;
+  line-height: 1.4;
+}
+
+.calendar-help strong {
+  color: #1f2937;
+  font-size: 0.8rem;
+}
+
+.calendar-help p {
+  margin: 0;
+}
+
+.calendar-help span {
+  font-weight: 900;
+}
+
+.help-red {
+  color: #b42318;
+}
+
+.help-yellow {
+  color: #8a6100;
+}
+
+.help-green {
+  color: #16794a;
+}
+
 .sync-action {
   display: inline-flex;
   align-items: center;

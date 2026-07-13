@@ -504,6 +504,15 @@ export function App() {
               </select>
             </div>
 
+            <div className="calendar-help" aria-label="Kurzanleitung Kalender">
+              <strong>So geht's</strong>
+              <p>
+                Wähle deine Person und klicke pro Datum auf <span className="help-red">Nein</span>,{" "}
+                <span className="help-yellow">Vielleicht</span> oder <span className="help-green">Ja</span>.
+              </p>
+              <p>Danach Cloud speichern. Gemeinsame freie Tage erscheinen unter „Gute Tage“.</p>
+            </div>
+
             <div className="sync-panel">
               <button className="sync-action primary" onClick={saveToCloud} disabled={!cloudSyncAvailable || syncBusy}>
                 <CheckCircle2 size={16} />
