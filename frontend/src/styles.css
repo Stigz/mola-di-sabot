@@ -42,6 +42,112 @@ button {
   margin-bottom: 14px;
 }
 
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.help-button,
+.dialog-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 auto;
+  padding: 0;
+  border: 1px solid #d9e0ea;
+  border-radius: 50%;
+  background: #ffffff;
+  color: #475467;
+}
+
+.help-button:hover,
+.dialog-close:hover {
+  border-color: #94a3b8;
+  background: #f8fafc;
+  color: #18212f;
+}
+
+.help-overlay {
+  position: fixed;
+  z-index: 20;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(15, 23, 42, 0.38);
+}
+
+.help-dialog {
+  width: min(100%, 420px);
+  padding: 18px;
+  border: 1px solid #d9e0ea;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 18px 48px rgba(15, 23, 42, 0.2);
+}
+
+.help-dialog header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.help-dialog h2,
+.help-dialog p {
+  margin-bottom: 0;
+}
+
+.help-dialog > p {
+  color: #475569;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.dialog-close {
+  width: 34px;
+  height: 34px;
+}
+
+.help-options {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  overflow: hidden;
+  margin: 14px 0;
+  border: 1px solid #d9e0ea;
+  border-radius: 6px;
+}
+
+.help-options span {
+  padding: 9px 5px;
+  text-align: center;
+  font-size: 0.82rem;
+  font-weight: 900;
+}
+
+.help-options .red {
+  background: #fff1f2;
+  color: #b42318;
+}
+
+.help-options .yellow {
+  background: #fffbeb;
+  color: #8a6100;
+}
+
+.help-options .green {
+  background: #ecfdf5;
+  color: #16794a;
+}
+
+.help-finish strong {
+  color: #18212f;
+}
+
 .eyebrow {
   margin: 0 0 4px;
   color: #667085;
@@ -177,42 +283,6 @@ textarea {
 .sync-panel {
   display: grid;
   gap: 6px;
-}
-
-.calendar-help {
-  display: grid;
-  gap: 5px;
-  padding: 9px 10px;
-  border-left: 3px solid #94a3b8;
-  background: #f8fafc;
-  color: #475569;
-  font-size: 0.76rem;
-  line-height: 1.4;
-}
-
-.calendar-help strong {
-  color: #1f2937;
-  font-size: 0.8rem;
-}
-
-.calendar-help p {
-  margin: 0;
-}
-
-.calendar-help span {
-  font-weight: 900;
-}
-
-.help-red {
-  color: #b42318;
-}
-
-.help-yellow {
-  color: #8a6100;
-}
-
-.help-green {
-  color: #16794a;
 }
 
 .sync-action {
@@ -877,6 +947,14 @@ textarea {
   .finance-hero {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .topbar-actions {
+    width: 100%;
+  }
+
+  .topbar-actions .tabs {
+    flex: 1;
   }
 
   .calendar-layout,

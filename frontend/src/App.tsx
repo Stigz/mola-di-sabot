@@ -4,6 +4,7 @@ import {
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
+  CircleHelp,
   Clock3,
   FileSpreadsheet,
   Layers3,
@@ -12,6 +13,7 @@ import {
   ReceiptText,
   RotateCcw,
   Settings2,
+  X,
 } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import {
@@ -56,6 +58,7 @@ const residentSorter = new Intl.Collator("de-CH", { sensitivity: "base" });
 const financeSpreadsheetUrl =
   "https://docs.google.com/spreadsheets/d/1AsAhdj9Hn7DA30unYn4Haki6sG8jufdgJFdMTpxDFR8/edit";
 const financeRulesStorageKey = "mola-di-sabot-finance-rules-v1";
+const calendarHelpStorageKey = "mola-di-sabot-calendar-help-seen-v1";
 
 type DayStatus = AvailabilityStatus | "mixed" | "empty";
 
@@ -258,6 +261,9 @@ export function App() {
   const [syncMessage, setSyncMessage] = useState("");
   const [syncBusy, setSyncBusy] = useState(false);
   const [reloadNonce, setReloadNonce] = useState(0);
+  const [calendarHelpOpen, setCalendarHelpOpen] = useState(
+    () => localStorage.getItem(calendarHelpStorageKey) !== "true",
+  );
 
   const visibleDates = useMemo(
     () => (view === "month" ? monthGrid(cursor) : weekGrid(cursor)),
@@ -271,6 +277,15 @@ export function App() {
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
   }, []);
+
+  useEffect(() => {
+    if (!calendarHelpOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") closeCalendarHelp();
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [calendarHelpOpen]);
 
   useEffect(() => {
     let cancelled = false;
@@ -357,6 +372,11 @@ export function App() {
     } finally {
       setSyncBusy(false);
     }
+  }
+
+  function closeCalendarHelp() {
+    localStorage.setItem(calendarHelpStorageKey, "true");
+    setCalendarHelpOpen(false);
   }
 
   function switchTab(nextTab: AppTab) {
@@ -464,21 +484,65 @@ export function App() {
           <p className="eyebrow">Mola di Sabot</p>
           <h1>Bauplan</h1>
         </div>
-        <nav className="tabs" aria-label="Hauptbereiche">
-          <button className={tab === "calendar" ? "active" : ""} onClick={() => switchTab("calendar")}>
-            <CalendarDays size={18} />
-            Kalender
-          </button>
-          <button className={tab === "tasks" ? "active" : ""} onClick={() => switchTab("tasks")}>
-            <ListTodo size={18} />
-            Aufgaben
-          </button>
-          <button className={tab === "hours" ? "active" : ""} onClick={() => switchTab("hours")}>
-            <Clock3 size={18} />
-            Stunden
-          </button>
-        </nav>
+        <div className="topbar-actions">
+          <nav className="tabs" aria-label="Hauptbereiche">
+            <button className={tab === "calendar" ? "active" : ""} onClick={() => switchTab("calendar")}>
+              <CalendarDays size={18} />
+              Kalender
+            </button>
+            <button className={tab === "tasks" ? "active" : ""} onClick={() => switchTab("tasks")}>
+              <ListTodo size={18} />
+              Aufgaben
+            </button>
+            <button className={tab === "hours" ? "active" : ""} onClick={() => switchTab("hours")}>
+              <Clock3 size={18} />
+              Stunden
+            </button>
+          </nav>
+          {tab === "calendar" && (
+            <button
+              className="help-button"
+              type="button"
+              onClick={() => setCalendarHelpOpen(true)}
+              aria-label="Kalender-Anleitung öffnen"
+              title="Kalender-Anleitung"
+            >
+              <CircleHelp size={20} />
+            </button>
+          )}
+        </div>
       </header>
+
+      {calendarHelpOpen && tab === "calendar" && (
+        <div
+          className="help-overlay"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) closeCalendarHelp();
+          }}
+        >
+          <section className="help-dialog" role="dialog" aria-modal="true" aria-labelledby="calendar-help-title">
+            <header>
+              <div>
+                <p className="eyebrow">Kalender</p>
+                <h2 id="calendar-help-title">So geht's</h2>
+              </div>
+              <button className="dialog-close" type="button" onClick={closeCalendarHelp} aria-label="Anleitung schließen">
+                <X size={19} />
+              </button>
+            </header>
+            <p>Wähle deine Person und klicke bei jedem Datum auf deine Verfügbarkeit:</p>
+            <div className="help-options" aria-label="Verfügbarkeiten">
+              <span className="red">Nein</span>
+              <span className="yellow">Vielleicht</span>
+              <span className="green">Ja</span>
+            </div>
+            <p className="help-finish">
+              Danach <strong>Cloud speichern</strong>. Unter <strong>Gute Tage</strong> siehst du, wann mehrere Personen Zeit haben.
+            </p>
+          </section>
+        </div>
+      )}
 
       {message && (
         <div className="notice" role="status">
@@ -502,15 +566,6 @@ export function App() {
                   </option>
                 ))}
               </select>
-            </div>
-
-            <div className="calendar-help" aria-label="Kurzanleitung Kalender">
-              <strong>So geht's</strong>
-              <p>
-                Wähle deine Person und klicke pro Datum auf <span className="help-red">Nein</span>,{" "}
-                <span className="help-yellow">Vielleicht</span> oder <span className="help-green">Ja</span>.
-              </p>
-              <p>Danach Cloud speichern. Gemeinsame freie Tage erscheinen unter „Gute Tage“.</p>
             </div>
 
             <div className="sync-panel">
