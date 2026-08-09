@@ -58,7 +58,7 @@ const residentEmoji: Record<string, string> = {
   nic: "🇺🇸",
   giulio: "🇯🇲",
   doma: "🇩🇴",
-  nico: "🐻",
+  nico: "🇮🇹",
   lars: "🚩",
   lisa: "🇨🇭",
 };
