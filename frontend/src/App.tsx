@@ -54,6 +54,19 @@ const statusOptions: Array<{ id: AvailabilityStatus; label: string }> = [
   { id: "green", label: "Ja" },
 ];
 
+const residentEmoji: Record<string, string> = {
+  nic: "🇺🇸",
+  giulio: "🇯🇲",
+  doma: "🇩🇴",
+  nico: "🐻",
+  lars: "🚩",
+  lisa: "🇨🇭",
+};
+
+function emojiForResident(resident: Resident): string {
+  return residentEmoji[resident.id] ?? "●";
+}
+
 const client = createClient();
 const cloudSyncAvailable = syncAvailable();
 const residentSorter = new Intl.Collator("de-CH", { sensitivity: "base" });
@@ -540,7 +553,7 @@ export function App() {
               <span className="green">Ja</span>
             </div>
             <p className="help-position">
-              Links rot, Mitte gelb, rechts grün. Die Punkte darunter gehören zu den Personen in der Legende.
+              Links rot, Mitte gelb, rechts grün. Die Symbole darunter gehören zu den Personen in der Legende.
             </p>
             <p className="help-finish">
               Danach <strong>Cloud speichern</strong>. Unter <strong>Gute Tage</strong> siehst du, wann mehrere Personen Zeit haben.
@@ -567,7 +580,7 @@ export function App() {
               >
                 {residents.map((resident) => (
                   <option key={resident.id} value={resident.id}>
-                    {resident.name}
+                    {emojiForResident(resident)} {resident.name}
                   </option>
                 ))}
               </select>
@@ -635,14 +648,16 @@ export function App() {
               </div>
             </div>
 
-            <div className="resident-legend" aria-label="Personenfarben">
+            <div className="resident-legend" aria-label="Personensymbole">
               <span className="legend-title">Personen</span>
               {residents.map((resident) => (
                 <span
                   className={`legend-person ${resident.id === activeResident ? "active" : ""}`}
                   key={resident.id}
                 >
-                  <span className="resident-dot" style={{ "--resident-color": resident.color } as React.CSSProperties} />
+                  <span className="resident-emoji" role="img" aria-label={resident.name}>
+                    {emojiForResident(resident)}
+                  </span>
                   {resident.name}
                 </span>
               ))}
@@ -698,9 +713,12 @@ export function App() {
                               <span
                                 key={resident.id}
                                 title={`${resident.name}: ${day.split ? "geteilt" : option.label}`}
-                                className={`resident-dot ${day.split || day.status === "mixed" ? "split" : ""}`}
-                                style={{ "--resident-color": resident.color } as React.CSSProperties}
-                              />
+                                className={`resident-emoji ${day.split || day.status === "mixed" ? "split" : ""}`}
+                                role="img"
+                                aria-label={resident.name}
+                              >
+                                {emojiForResident(resident)}
+                              </span>
                             );
                           })}
                         </div>
@@ -766,7 +784,7 @@ export function App() {
               <select name="residentId" defaultValue={activeResident}>
                 {residents.map((resident) => (
                   <option key={resident.id} value={resident.id}>
-                    {resident.name}
+                    {emojiForResident(resident)} {resident.name}
                   </option>
                 ))}
               </select>
@@ -805,7 +823,9 @@ export function App() {
             <div className="totals-grid">
               {totalsByResident.map(({ resident, hours }) => (
                 <div className="total-card" key={resident.id}>
-                  <span className="avatar" style={{ backgroundColor: resident.color }} />
+                  <span className="resident-emoji" role="img" aria-label={resident.name}>
+                    {emojiForResident(resident)}
+                  </span>
                   <strong>{resident.name}</strong>
                   <span>{hours.toFixed(1)}h</span>
                 </div>

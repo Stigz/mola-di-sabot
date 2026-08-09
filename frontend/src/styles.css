@@ -322,19 +322,6 @@ textarea {
   line-height: 1.35;
 }
 
-.avatar {
-  width: 12px;
-  height: 12px;
-  flex: 0 0 auto;
-  border-radius: 50%;
-  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.55);
-}
-
-.avatar.small {
-  width: 10px;
-  height: 10px;
-}
-
 .window-row {
   display: grid;
   gap: 3px;
@@ -611,19 +598,26 @@ textarea {
   min-width: 0;
 }
 
-.resident-dot {
-  display: inline-block;
-  width: 8px;
-  height: 8px;
+.resident-emoji {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
   flex: 0 0 auto;
-  border-radius: 50%;
-  background: var(--resident-color);
-  box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.12);
+  font-size: 0.84rem;
+  line-height: 1;
 }
 
-.resident-dot.split {
-  border: 2px solid #f59e0b;
-  background: var(--resident-color);
+.day-status-row .resident-emoji {
+  width: 11px;
+  height: 11px;
+  font-size: 0.62rem;
+}
+
+.resident-emoji.split {
+  border-radius: 3px;
+  outline: 1px solid #f59e0b;
 }
 
 .primary-action,
