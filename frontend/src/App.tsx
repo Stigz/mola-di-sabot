@@ -46,10 +46,10 @@ import type {
 
 const periods: Period[] = ["morning", "afternoon"];
 
-const statusOptions: Array<{ id: AvailabilityStatus; label: string; shortLabel: string }> = [
-  { id: "red", label: "Nein", shortLabel: "N" },
-  { id: "yellow", label: "Vielleicht", shortLabel: "V" },
-  { id: "green", label: "Ja", shortLabel: "J" },
+const statusOptions: Array<{ id: AvailabilityStatus; label: string }> = [
+  { id: "red", label: "Nein" },
+  { id: "yellow", label: "Vielleicht" },
+  { id: "green", label: "Ja" },
 ];
 
 const client = createClient();
@@ -537,6 +537,7 @@ export function App() {
               <span className="yellow">Vielleicht</span>
               <span className="green">Ja</span>
             </div>
+            <p className="help-position">Links rot, Mitte gelb, rechts grün.</p>
             <p className="help-finish">
               Danach <strong>Cloud speichern</strong>. Unter <strong>Gute Tage</strong> siehst du, wann mehrere Personen Zeit haben.
             </p>
@@ -653,19 +654,6 @@ export function App() {
                     <div
                       className={`day-cell ${activeDay.status} ${activeDay.split ? "split" : ""}`}
                     >
-                      <span className="availability-score">
-                        <strong>{counts.green}</strong>
-                        <small>ja</small>
-                      </span>
-                      <span className="day-secondary">
-                        {counts.yellow > 0
-                          ? `${counts.yellow} vielleicht`
-                          : counts.split > 0
-                            ? `${counts.split} geteilt`
-                            : counts.red > 0
-                              ? `${counts.red} nein`
-                              : ""}
-                      </span>
                       <div className="day-zones" aria-label={`${dateKey} für ${activeResident} setzen`}>
                         {statusOptions.map((option) => (
                           <button
@@ -674,9 +662,7 @@ export function App() {
                             onClick={() => setAvailabilityForDay(dateKey, option.id)}
                             title={`${option.label} setzen`}
                             aria-label={`${option.label} setzen`}
-                          >
-                            {option.shortLabel}
-                          </button>
+                          />
                         ))}
                       </div>
                       <div className="dots" aria-label="Status der Personen">
