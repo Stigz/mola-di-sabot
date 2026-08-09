@@ -27,6 +27,8 @@ import {
   addDays,
   formatDayLabel,
   formatMonthLabel,
+  formatMonthShort,
+  formatWeekdayShort,
   isSameMonth,
   monthGrid,
   rangeKeys,
@@ -537,7 +539,9 @@ export function App() {
               <span className="yellow">Vielleicht</span>
               <span className="green">Ja</span>
             </div>
-            <p className="help-position">Links rot, Mitte gelb, rechts grün.</p>
+            <p className="help-position">
+              Links rot, Mitte gelb, rechts grün. Die Punkte darunter gehören zu den Personen in der Legende.
+            </p>
             <p className="help-finish">
               Danach <strong>Cloud speichern</strong>. Unter <strong>Gute Tage</strong> siehst du, wann mehrere Personen Zeit haben.
             </p>
@@ -631,6 +635,19 @@ export function App() {
               </div>
             </div>
 
+            <div className="resident-legend" aria-label="Personenfarben">
+              <span className="legend-title">Personen</span>
+              {residents.map((resident) => (
+                <span
+                  className={`legend-person ${resident.id === activeResident ? "active" : ""}`}
+                  key={resident.id}
+                >
+                  <span className="resident-dot" style={{ "--resident-color": resident.color } as React.CSSProperties} />
+                  {resident.name}
+                </span>
+              ))}
+            </div>
+
             <div className={`calendar-grid ${view}`}>
               {["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"].map((day) => (
                 <div className="weekday" key={day}>
@@ -647,7 +664,11 @@ export function App() {
                     className={`day-card ${isSameMonth(date, cursor) ? "" : "outside"}`}
                   >
                     <header>
-                      <span>{date.getDate()}</span>
+                      <span className="date-label">
+                        <strong>{date.getDate()}</strong>
+                        <small className="date-month">{formatMonthShort(date)}</small>
+                        <small className="date-weekday">{formatWeekdayShort(date)}</small>
+                      </span>
                       {counts.split > 0 && <em>geteilt</em>}
                     </header>
 
@@ -665,21 +686,25 @@ export function App() {
                           />
                         ))}
                       </div>
-                      <div className="dots" aria-label="Status der Personen">
-                        {residents.map((resident) => {
-                          const day = dayAvailabilityFor(availabilityById, dateKey, resident.id);
-                          const statusLabel =
-                            statusOptions.find((option) => option.id === day.status)?.label ?? "offen";
-                          return (
-                            <span
-                              key={resident.id}
-                              title={`${resident.name}: ${day.split ? "geteilt" : statusLabel}`}
-                              className={`dot ${day.status} ${day.split ? "split" : ""}`}
-                              style={{ "--resident-color": resident.color } as React.CSSProperties}
-                            />
-                          );
-                        })}
-                      </div>
+                    </div>
+                    <div className="day-status-row" aria-label="Verfügbarkeit der Personen">
+                      {statusOptions.map((option) => (
+                        <div className={`status-bucket ${option.id}`} key={option.id}>
+                          {residents.map((resident) => {
+                            const day = dayAvailabilityFor(availabilityById, dateKey, resident.id);
+                            const displayStatus = day.split || day.status === "mixed" ? "yellow" : day.status;
+                            if (displayStatus !== option.id) return null;
+                            return (
+                              <span
+                                key={resident.id}
+                                title={`${resident.name}: ${day.split ? "geteilt" : option.label}`}
+                                className={`resident-dot ${day.split || day.status === "mixed" ? "split" : ""}`}
+                                style={{ "--resident-color": resident.color } as React.CSSProperties}
+                              />
+                            );
+                          })}
+                        </div>
+                      ))}
                     </div>
                   </article>
                 );

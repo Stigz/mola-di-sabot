@@ -51,6 +51,14 @@ export function formatMonthLabel(date: Date): string {
   return new Intl.DateTimeFormat("de-CH", { month: "long", year: "numeric" }).format(date);
 }
 
+export function formatMonthShort(date: Date): string {
+  return new Intl.DateTimeFormat("de-CH", { month: "short" }).format(date).replace(/\.$/, "");
+}
+
+export function formatWeekdayShort(date: Date): string {
+  return new Intl.DateTimeFormat("de-CH", { weekday: "short" }).format(date).replace(/\.$/, "");
+}
+
 export function isSameMonth(a: Date, b: Date): boolean {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth();
 }
