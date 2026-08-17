@@ -226,6 +226,10 @@ h2 {
   align-items: start;
 }
 
+.phase-layout {
+  grid-template-columns: 250px minmax(0, 1fr);
+}
+
 .side-panel,
 .entry-panel,
 .table-panel {
@@ -653,12 +657,47 @@ textarea {
 
 .date-range-fields {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: 1fr;
   gap: 7px;
 }
 
 .date-range-fields label {
   min-width: 0;
+}
+
+.date-input-wrap {
+  position: relative;
+  display: block;
+  min-width: 0;
+}
+
+.date-input-wrap input {
+  padding-right: 40px;
+}
+
+.date-input-wrap input::-webkit-calendar-picker-indicator {
+  opacity: 0;
+}
+
+.date-picker-button {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  display: inline-grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.date-picker-button:hover,
+.date-picker-button:focus-visible {
+  background: #e2e8f0;
+  color: #18212f;
 }
 
 .section-heading {

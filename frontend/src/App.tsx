@@ -17,7 +17,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
   createClient,
   hasUserLocalData,
@@ -62,7 +62,7 @@ const residentEmoji: Record<string, string> = {
   nic: "🇺🇸",
   giulio: "🇯🇲",
   doma: "🇩🇴",
-  nico: "🇮🇹",
+  nico: "🏴",
   lars: "🚩",
   lisa: "🇨🇭",
 };
@@ -329,6 +329,8 @@ export function App() {
   const [editingPhaseId, setEditingPhaseId] = useState<string | null>(null);
   const [taskDraft, setTaskDraft] = useState<TaskDraft | null>(null);
   const [hourDraft, setHourDraft] = useState<HourDraft>(() => emptyHourDraft());
+  const phaseStartDateRef = useRef<HTMLInputElement>(null);
+  const phaseEndDateRef = useRef<HTMLInputElement>(null);
   const [message, setMessage] = useState("");
   const [syncMessage, setSyncMessage] = useState("");
   const [syncBusy, setSyncBusy] = useState(false);
@@ -532,6 +534,12 @@ export function App() {
   function cancelPhaseEdit() {
     setEditingPhaseId(null);
     setPhaseDraft(emptyPhaseDraft);
+  }
+
+  function openDatePicker(input: HTMLInputElement | null) {
+    if (!input) return;
+    input.focus();
+    input.showPicker?.();
   }
 
   async function deletePhase(phase: BuildPhase) {
@@ -948,19 +956,43 @@ export function App() {
             <div className="date-range-fields">
               <label>
                 Von
-                <input
-                  type="date"
-                  value={phaseDraft.startDate}
-                  onChange={(event) => setPhaseDraft((current) => ({ ...current, startDate: event.target.value }))}
-                />
+                <span className="date-input-wrap">
+                  <input
+                    ref={phaseStartDateRef}
+                    type="date"
+                    value={phaseDraft.startDate}
+                    onChange={(event) => setPhaseDraft((current) => ({ ...current, startDate: event.target.value }))}
+                  />
+                  <button
+                    className="date-picker-button"
+                    type="button"
+                    onClick={() => openDatePicker(phaseStartDateRef.current)}
+                    aria-label="Startdatum im Kalender wählen"
+                    title="Kalender öffnen"
+                  >
+                    <CalendarDays size={16} />
+                  </button>
+                </span>
               </label>
               <label>
                 Bis
-                <input
-                  type="date"
-                  value={phaseDraft.endDate}
-                  onChange={(event) => setPhaseDraft((current) => ({ ...current, endDate: event.target.value }))}
-                />
+                <span className="date-input-wrap">
+                  <input
+                    ref={phaseEndDateRef}
+                    type="date"
+                    value={phaseDraft.endDate}
+                    onChange={(event) => setPhaseDraft((current) => ({ ...current, endDate: event.target.value }))}
+                  />
+                  <button
+                    className="date-picker-button"
+                    type="button"
+                    onClick={() => openDatePicker(phaseEndDateRef.current)}
+                    aria-label="Enddatum im Kalender wählen"
+                    title="Kalender öffnen"
+                  >
+                    <CalendarDays size={16} />
+                  </button>
+                </span>
               </label>
             </div>
             <label>
