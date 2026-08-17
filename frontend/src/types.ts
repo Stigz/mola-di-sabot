@@ -2,6 +2,7 @@ export type AvailabilityStatus = "green" | "yellow" | "red";
 export type Period = "morning" | "afternoon";
 export type CalendarView = "month" | "week";
 export type AppTab = "calendar" | "tasks" | "hours" | "finance";
+export type WorkStatus = "planned" | "active" | "done";
 
 export interface Resident {
   id: string;
@@ -18,12 +19,23 @@ export interface AvailabilityEntry {
   updatedAt?: string;
 }
 
-export interface Task {
+export interface BuildPhase {
   id: string;
   title: string;
-  status: "planned" | "active" | "done";
+  status: WorkStatus;
+  startDate?: string;
+  endDate?: string;
+  notes?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface Task {
+  id: string;
+  phaseId: string;
+  title: string;
+  status: WorkStatus;
   estimateHours: number;
-  plannedDate?: string;
   notes?: string;
   createdAt?: string;
   updatedAt?: string;
@@ -32,16 +44,19 @@ export interface Task {
 export interface HourEntry {
   id: string;
   residentId: string;
+  phaseId?: string;
   taskId?: string;
   date: string;
   hours: number;
   notes?: string;
   createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface AppState {
   residents: Resident[];
   availability: AvailabilityEntry[];
+  phases: BuildPhase[];
   tasks: Task[];
   hours: HourEntry[];
   savedAt?: string;
@@ -51,8 +66,15 @@ export interface AppClient {
   listResidents(): Promise<Resident[]>;
   listAvailability(from: string, to: string): Promise<AvailabilityEntry[]>;
   putAvailability(entry: AvailabilityEntry): Promise<AvailabilityEntry>;
+  listPhases(): Promise<BuildPhase[]>;
+  savePhase(phase: Partial<BuildPhase> & { title: string }): Promise<BuildPhase>;
+  deletePhase(id: string): Promise<void>;
   listTasks(): Promise<Task[]>;
-  saveTask(task: Partial<Task> & { title: string }): Promise<Task>;
-  listHours(from: string, to: string): Promise<HourEntry[]>;
-  saveHour(entry: Omit<HourEntry, "id" | "createdAt">): Promise<HourEntry>;
+  saveTask(task: Partial<Task> & { phaseId: string; title: string }): Promise<Task>;
+  deleteTask(id: string): Promise<void>;
+  listHours(): Promise<HourEntry[]>;
+  saveHour(
+    entry: Partial<HourEntry> & Pick<HourEntry, "residentId" | "date" | "hours">,
+  ): Promise<HourEntry>;
+  deleteHour(id: string): Promise<void>;
 }

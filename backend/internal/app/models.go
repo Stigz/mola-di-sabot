@@ -36,12 +36,23 @@ type AvailabilityEntry struct {
 	UpdatedAt  string             `json:"updatedAt,omitempty"`
 }
 
+type BuildPhase struct {
+	ID        string `json:"id"`
+	Title     string `json:"title"`
+	Status    string `json:"status"`
+	StartDate string `json:"startDate,omitempty"`
+	EndDate   string `json:"endDate,omitempty"`
+	Notes     string `json:"notes,omitempty"`
+	CreatedAt string `json:"createdAt,omitempty"`
+	UpdatedAt string `json:"updatedAt,omitempty"`
+}
+
 type Task struct {
 	ID            string  `json:"id"`
+	PhaseID       string  `json:"phaseId"`
 	Title         string  `json:"title"`
 	Status        string  `json:"status"`
 	EstimateHours float64 `json:"estimateHours"`
-	PlannedDate   string  `json:"plannedDate,omitempty"`
 	Notes         string  `json:"notes,omitempty"`
 	CreatedAt     string  `json:"createdAt,omitempty"`
 	UpdatedAt     string  `json:"updatedAt,omitempty"`
@@ -50,16 +61,19 @@ type Task struct {
 type HourEntry struct {
 	ID         string  `json:"id"`
 	ResidentID string  `json:"residentId"`
+	PhaseID    string  `json:"phaseId,omitempty"`
 	TaskID     string  `json:"taskId,omitempty"`
 	Date       string  `json:"date"`
 	Hours      float64 `json:"hours"`
 	Notes      string  `json:"notes,omitempty"`
 	CreatedAt  string  `json:"createdAt,omitempty"`
+	UpdatedAt  string  `json:"updatedAt,omitempty"`
 }
 
 type AppState struct {
 	Residents    []Resident          `json:"residents"`
 	Availability []AvailabilityEntry `json:"availability"`
+	Phases       []BuildPhase        `json:"phases"`
 	Tasks        []Task              `json:"tasks"`
 	Hours        []HourEntry         `json:"hours"`
 	SavedAt      string              `json:"savedAt,omitempty"`
@@ -98,6 +112,9 @@ func normalizeSnapshot(state AppState) AppState {
 	}
 	if state.Availability == nil {
 		state.Availability = []AvailabilityEntry{}
+	}
+	if state.Phases == nil {
+		state.Phases = []BuildPhase{}
 	}
 	if state.Tasks == nil {
 		state.Tasks = []Task{}

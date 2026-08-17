@@ -9,10 +9,12 @@ import {
   FileSpreadsheet,
   Layers3,
   ListTodo,
+  Pencil,
   Plus,
   ReceiptText,
   RotateCcw,
   Settings2,
+  Trash2,
   X,
 } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useState } from "react";
@@ -39,11 +41,13 @@ import type {
   AppTab,
   AvailabilityEntry,
   AvailabilityStatus,
+  BuildPhase,
   CalendarView,
   HourEntry,
   Period,
   Resident,
   Task,
+  WorkStatus,
 } from "./types";
 
 const periods: Period[] = ["morning", "afternoon"];
@@ -96,11 +100,59 @@ type WorkEntry = {
   days: number;
 };
 
-const taskStatusLabels: Record<Task["status"], string> = {
+const taskStatusLabels: Record<WorkStatus, string> = {
   planned: "geplant",
   active: "aktiv",
   done: "erledigt",
 };
+
+type PhaseDraft = {
+  title: string;
+  status: WorkStatus;
+  startDate: string;
+  endDate: string;
+  notes: string;
+};
+
+type TaskDraft = {
+  id?: string;
+  phaseId: string;
+  title: string;
+  status: WorkStatus;
+  estimateHours: string;
+  notes: string;
+  createdAt?: string;
+};
+
+type HourDraft = {
+  id?: string;
+  residentId: string;
+  phaseId: string;
+  taskId: string;
+  date: string;
+  hours: string;
+  notes: string;
+  createdAt?: string;
+};
+
+const emptyPhaseDraft: PhaseDraft = {
+  title: "",
+  status: "planned",
+  startDate: "",
+  endDate: "",
+  notes: "",
+};
+
+function emptyHourDraft(residentId = "nic"): HourDraft {
+  return {
+    residentId,
+    phaseId: "",
+    taskId: "",
+    date: toDateKey(new Date()),
+    hours: "",
+    notes: "",
+  };
+}
 
 const defaultFinanceRules: FinanceRuleState = {
   amortizationMonths: 60,
@@ -270,8 +322,13 @@ export function App() {
   const [residents, setResidents] = useState<Resident[]>([]);
   const [activeResident, setActiveResident] = useState("nic");
   const [availability, setAvailability] = useState<AvailabilityEntry[]>([]);
+  const [phases, setPhases] = useState<BuildPhase[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [hours, setHours] = useState<HourEntry[]>([]);
+  const [phaseDraft, setPhaseDraft] = useState<PhaseDraft>(emptyPhaseDraft);
+  const [editingPhaseId, setEditingPhaseId] = useState<string | null>(null);
+  const [taskDraft, setTaskDraft] = useState<TaskDraft | null>(null);
+  const [hourDraft, setHourDraft] = useState<HourDraft>(() => emptyHourDraft());
   const [message, setMessage] = useState("");
   const [syncMessage, setSyncMessage] = useState("");
   const [syncBusy, setSyncBusy] = useState(false);
@@ -307,17 +364,19 @@ export function App() {
 
     async function load() {
       try {
-        const [nextResidents, nextAvailability, nextTasks, nextHours] = await Promise.all([
+        const [nextResidents, nextAvailability, nextPhases, nextTasks, nextHours] = await Promise.all([
           client.listResidents(),
           client.listAvailability(range.from, range.to),
+          client.listPhases(),
           client.listTasks(),
-          client.listHours(range.from, range.to),
+          client.listHours(),
         ]);
 
         if (cancelled) return;
         const sortedResidents = sortResidents(nextResidents);
         setResidents(sortedResidents);
         setAvailability(nextAvailability);
+        setPhases(nextPhases);
         setTasks(nextTasks);
         setHours(nextHours);
         if (sortedResidents.length > 0 && !sortedResidents.some((resident) => resident.id === activeResident)) {
@@ -430,35 +489,159 @@ export function App() {
     setCursor(next);
   }
 
-  async function createTask(event: FormEvent<HTMLFormElement>) {
+  async function savePhase(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const data = new FormData(event.currentTarget);
-    const title = String(data.get("title") ?? "").trim();
+    const title = phaseDraft.title.trim();
     if (!title) return;
+    if (phaseDraft.startDate && phaseDraft.endDate && phaseDraft.endDate < phaseDraft.startDate) {
+      setMessage("Das Enddatum muss nach dem Startdatum liegen.");
+      return;
+    }
 
-    const saved = await client.saveTask({
+    const existing = phases.find((phase) => phase.id === editingPhaseId);
+    const saved = await client.savePhase({
+      id: editingPhaseId ?? undefined,
       title,
-      estimateHours: Number(data.get("estimateHours") ?? 0),
-      plannedDate: String(data.get("plannedDate") ?? ""),
-      notes: String(data.get("notes") ?? ""),
-      status: "planned",
+      status: phaseDraft.status,
+      startDate: phaseDraft.startDate,
+      endDate: phaseDraft.endDate,
+      notes: phaseDraft.notes,
+      createdAt: existing?.createdAt,
     });
-    setTasks((current) => [saved, ...current]);
-    event.currentTarget.reset();
+    setPhases((current) =>
+      current.some((phase) => phase.id === saved.id)
+        ? current.map((phase) => (phase.id === saved.id ? saved : phase))
+        : [saved, ...current],
+    );
+    setPhaseDraft(emptyPhaseDraft);
+    setEditingPhaseId(null);
+    setMessage("");
   }
 
-  async function createHour(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const data = new FormData(event.currentTarget);
-    const saved = await client.saveHour({
-      residentId: String(data.get("residentId")),
-      taskId: String(data.get("taskId") ?? ""),
-      date: String(data.get("date")),
-      hours: Number(data.get("hours") ?? 0),
-      notes: String(data.get("notes") ?? ""),
+  function editPhase(phase: BuildPhase) {
+    setEditingPhaseId(phase.id);
+    setPhaseDraft({
+      title: phase.title,
+      status: phase.status,
+      startDate: phase.startDate ?? "",
+      endDate: phase.endDate ?? "",
+      notes: phase.notes ?? "",
     });
-    setHours((current) => [saved, ...current]);
-    event.currentTarget.reset();
+  }
+
+  function cancelPhaseEdit() {
+    setEditingPhaseId(null);
+    setPhaseDraft(emptyPhaseDraft);
+  }
+
+  async function deletePhase(phase: BuildPhase) {
+    const phaseTasks = tasks.filter((task) => task.phaseId === phase.id);
+    const historicalHours = hours.filter((entry) => entry.phaseId === phase.id).length;
+    const detail = [
+      `${phaseTasks.length} Aufgabe${phaseTasks.length === 1 ? "" : "n"}`,
+      historicalHours > 0 ? `${historicalHours} bestehende Stundeneinträge bleiben erhalten` : "keine Stundeneinträge",
+    ].join(", ");
+    if (!window.confirm(`Bauphase „${phase.title}“ löschen? ${detail}.`)) return;
+
+    await client.deletePhase(phase.id);
+    setPhases((current) => current.filter((item) => item.id !== phase.id));
+    setTasks((current) => current.filter((task) => task.phaseId !== phase.id));
+    if (editingPhaseId === phase.id) cancelPhaseEdit();
+    if (taskDraft?.phaseId === phase.id) setTaskDraft(null);
+    if (hourDraft.phaseId === phase.id) {
+      setHourDraft((current) => ({ ...current, phaseId: "", taskId: "" }));
+    }
+  }
+
+  function addTask(phaseId: string) {
+    setTaskDraft({ phaseId, title: "", status: "planned", estimateHours: "", notes: "" });
+  }
+
+  function editTask(task: Task) {
+    setTaskDraft({
+      id: task.id,
+      phaseId: task.phaseId,
+      title: task.title,
+      status: task.status,
+      estimateHours: String(task.estimateHours || ""),
+      notes: task.notes ?? "",
+      createdAt: task.createdAt,
+    });
+  }
+
+  async function saveTask(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!taskDraft?.title.trim()) return;
+
+    const saved = await client.saveTask({
+      id: taskDraft.id,
+      phaseId: taskDraft.phaseId,
+      title: taskDraft.title.trim(),
+      status: taskDraft.status,
+      estimateHours: Number(taskDraft.estimateHours || 0),
+      notes: taskDraft.notes,
+      createdAt: taskDraft.createdAt,
+    });
+    setTasks((current) =>
+      current.some((task) => task.id === saved.id)
+        ? current.map((task) => (task.id === saved.id ? saved : task))
+        : [saved, ...current],
+    );
+    setTaskDraft(null);
+  }
+
+  async function deleteTask(task: Task) {
+    const historicalHours = hours.filter((entry) => entry.taskId === task.id).length;
+    const detail = historicalHours > 0 ? ` ${historicalHours} bestehende Stundeneinträge bleiben erhalten.` : "";
+    if (!window.confirm(`Aufgabe „${task.title}“ löschen?${detail}`)) return;
+    await client.deleteTask(task.id);
+    setTasks((current) => current.filter((item) => item.id !== task.id));
+    if (taskDraft?.id === task.id) setTaskDraft(null);
+    if (hourDraft.taskId === task.id) setHourDraft((current) => ({ ...current, taskId: "" }));
+  }
+
+  async function saveHour(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const amount = Number(hourDraft.hours);
+    if (!hourDraft.residentId || !hourDraft.date || amount <= 0) return;
+
+    const saved = await client.saveHour({
+      id: hourDraft.id,
+      residentId: hourDraft.residentId,
+      phaseId: hourDraft.phaseId || undefined,
+      taskId: hourDraft.taskId || undefined,
+      date: hourDraft.date,
+      hours: amount,
+      notes: hourDraft.notes,
+      createdAt: hourDraft.createdAt,
+    });
+    setHours((current) =>
+      current.some((entry) => entry.id === saved.id)
+        ? current.map((entry) => (entry.id === saved.id ? saved : entry))
+        : [saved, ...current],
+    );
+    setHourDraft(emptyHourDraft(hourDraft.residentId));
+  }
+
+  function editHour(entry: HourEntry) {
+    const linkedTask = tasks.find((task) => task.id === entry.taskId);
+    setHourDraft({
+      id: entry.id,
+      residentId: entry.residentId,
+      phaseId: entry.phaseId || linkedTask?.phaseId || "",
+      taskId: entry.taskId ?? "",
+      date: entry.date,
+      hours: String(entry.hours),
+      notes: entry.notes ?? "",
+      createdAt: entry.createdAt,
+    });
+  }
+
+  async function deleteHour(entry: HourEntry) {
+    if (!window.confirm(`Stundeneintrag vom ${entry.date} löschen?`)) return;
+    await client.deleteHour(entry.id);
+    setHours((current) => current.filter((item) => item.id !== entry.id));
+    if (hourDraft.id === entry.id) setHourDraft(emptyHourDraft(hourDraft.residentId));
   }
 
   const workWindows = visibleDates
@@ -491,6 +674,10 @@ export function App() {
       .filter((entry) => entry.residentId === resident.id)
       .reduce((sum, entry) => sum + entry.hours, 0),
   }));
+  const tasksForHourPhase = tasks.filter((task) => task.phaseId === hourDraft.phaseId);
+  const sortedHours = [...hours].sort(
+    (a, b) => b.date.localeCompare(a.date) || (b.createdAt ?? "").localeCompare(a.createdAt ?? ""),
+  );
 
   return (
     <main className="app-shell">
@@ -506,8 +693,8 @@ export function App() {
               Kalender
             </button>
             <button className={tab === "tasks" ? "active" : ""} onClick={() => switchTab("tasks")}>
-              <ListTodo size={18} />
-              Aufgaben
+              <Layers3 size={18} />
+              Bauphasen
             </button>
             <button className={tab === "hours" ? "active" : ""} onClick={() => switchTab("hours")}>
               <Clock3 size={18} />
@@ -733,55 +920,204 @@ export function App() {
       )}
 
       {tab === "tasks" && (
-        <section className="data-layout">
-          <form className="entry-panel" onSubmit={createTask}>
-            <h2>Neue Aufgabe</h2>
+        <section className="data-layout phase-layout">
+          <form className="entry-panel phase-form" onSubmit={savePhase}>
+            <h2>{editingPhaseId ? "Bauphase bearbeiten" : "Neue Bauphase"}</h2>
             <label>
               Titel
-              <input name="title" placeholder="Steinmauer, Dachbalken, Drainage..." />
+              <input
+                value={phaseDraft.title}
+                onChange={(event) => setPhaseDraft((current) => ({ ...current, title: event.target.value }))}
+                placeholder="Küche, Dach, Abwasser..."
+                required
+              />
             </label>
             <label>
-              Schätzung
-              <input name="estimateHours" type="number" min="0" step="0.5" placeholder="4" />
+              Status
+              <select
+                value={phaseDraft.status}
+                onChange={(event) =>
+                  setPhaseDraft((current) => ({ ...current, status: event.target.value as WorkStatus }))
+                }
+              >
+                {Object.entries(taskStatusLabels).map(([value, label]) => (
+                  <option value={value} key={value}>{label}</option>
+                ))}
+              </select>
             </label>
-            <label>
-              Geplanter Tag
-              <input name="plannedDate" type="date" />
-            </label>
+            <div className="date-range-fields">
+              <label>
+                Von
+                <input
+                  type="date"
+                  value={phaseDraft.startDate}
+                  onChange={(event) => setPhaseDraft((current) => ({ ...current, startDate: event.target.value }))}
+                />
+              </label>
+              <label>
+                Bis
+                <input
+                  type="date"
+                  value={phaseDraft.endDate}
+                  onChange={(event) => setPhaseDraft((current) => ({ ...current, endDate: event.target.value }))}
+                />
+              </label>
+            </div>
             <label>
               Notizen
-              <textarea name="notes" rows={4} />
+              <textarea
+                rows={4}
+                value={phaseDraft.notes}
+                onChange={(event) => setPhaseDraft((current) => ({ ...current, notes: event.target.value }))}
+              />
             </label>
-            <button className="primary-action">
+            <button className="primary-action" type="submit">
               <Plus size={18} />
-              Aufgabe hinzufügen
+              {editingPhaseId ? "Änderungen speichern" : "Bauphase hinzufügen"}
             </button>
+            {editingPhaseId && (
+              <button className="secondary-action" type="button" onClick={cancelPhaseEdit}>
+                <X size={17} />
+                Abbrechen
+              </button>
+            )}
           </form>
 
-          <div className="table-panel">
-            <h2>Aufgaben</h2>
-            <div className="task-list">
-              {tasks.map((task) => (
-                <article key={task.id} className="task-card">
-                  <div>
-                    <strong>{task.title}</strong>
-                    <span>{task.estimateHours || 0}h geschätzt</span>
-                  </div>
-                  <span className={`pill ${task.status}`}>{taskStatusLabels[task.status]}</span>
-                </article>
-              ))}
+          <div className="table-panel phase-board">
+            <div className="section-heading">
+              <div>
+                <h2>Bauphasen</h2>
+                <p className="muted">Aufgaben werden direkt ihrer Bauphase zugeordnet.</p>
+              </div>
             </div>
+
+            {phases.length === 0 ? (
+              <p className="empty-state">Noch keine Bauphase. Lege links die erste an.</p>
+            ) : (
+              <div className="phase-list">
+                {phases.map((phase) => {
+                  const phaseTasks = tasks.filter((task) => task.phaseId === phase.id);
+                  return (
+                    <article className="phase-card" key={phase.id}>
+                      <header className="phase-card-header">
+                        <div>
+                          <div className="phase-title-line">
+                            <h3>{phase.title}</h3>
+                            <span className={`pill ${phase.status}`}>{taskStatusLabels[phase.status]}</span>
+                          </div>
+                          <span className="phase-dates">
+                            {phase.startDate || phase.endDate
+                              ? `${phase.startDate || "offen"} – ${phase.endDate || "offen"}`
+                              : "Zeitraum offen"}
+                          </span>
+                        </div>
+                        <div className="row-actions">
+                          <button className="compact-icon" type="button" onClick={() => editPhase(phase)} title="Bauphase bearbeiten" aria-label={`${phase.title} bearbeiten`}>
+                            <Pencil size={16} />
+                          </button>
+                          <button className="compact-icon danger" type="button" onClick={() => deletePhase(phase)} title="Bauphase löschen" aria-label={`${phase.title} löschen`}>
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </header>
+
+                      {phase.notes && <p className="phase-notes">{phase.notes}</p>}
+
+                      <div className="phase-task-heading">
+                        <h4>Aufgaben</h4>
+                        <button className="small-action" type="button" onClick={() => addTask(phase.id)}>
+                          <Plus size={15} />
+                          Aufgabe
+                        </button>
+                      </div>
+
+                      {taskDraft?.phaseId === phase.id && (
+                        <form className="task-editor" onSubmit={saveTask}>
+                          <input
+                            value={taskDraft.title}
+                            onChange={(event) => setTaskDraft((current) => current && ({ ...current, title: event.target.value }))}
+                            placeholder="Aufgabe"
+                            aria-label="Aufgabentitel"
+                            required
+                          />
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.5"
+                            value={taskDraft.estimateHours}
+                            onChange={(event) => setTaskDraft((current) => current && ({ ...current, estimateHours: event.target.value }))}
+                            placeholder="Std."
+                            aria-label="Geschätzte Stunden"
+                          />
+                          <select
+                            value={taskDraft.status}
+                            onChange={(event) => setTaskDraft((current) => current && ({ ...current, status: event.target.value as WorkStatus }))}
+                            aria-label="Aufgabenstatus"
+                          >
+                            {Object.entries(taskStatusLabels).map(([value, label]) => (
+                              <option value={value} key={value}>{label}</option>
+                            ))}
+                          </select>
+                          <input
+                            value={taskDraft.notes}
+                            onChange={(event) => setTaskDraft((current) => current && ({ ...current, notes: event.target.value }))}
+                            placeholder="Notiz"
+                            aria-label="Aufgabennotiz"
+                          />
+                          <div className="editor-actions">
+                            <button className="small-action primary" type="submit">Speichern</button>
+                            <button className="compact-icon" type="button" onClick={() => setTaskDraft(null)} aria-label="Abbrechen" title="Abbrechen">
+                              <X size={16} />
+                            </button>
+                          </div>
+                        </form>
+                      )}
+
+                      <div className="phase-tasks">
+                        {phaseTasks.length === 0 ? (
+                          <p className="muted task-empty">Noch keine Aufgaben.</p>
+                        ) : (
+                          phaseTasks.map((task) => (
+                            <div className="phase-task-row" key={task.id}>
+                              <div>
+                                <strong>{task.title}</strong>
+                                <span>
+                                  {task.estimateHours ? `${task.estimateHours}h geschätzt` : "keine Schätzung"}
+                                  {task.notes ? ` · ${task.notes}` : ""}
+                                </span>
+                              </div>
+                              <span className={`pill ${task.status}`}>{taskStatusLabels[task.status]}</span>
+                              <div className="row-actions">
+                                <button className="compact-icon" type="button" onClick={() => editTask(task)} aria-label={`${task.title} bearbeiten`} title="Aufgabe bearbeiten">
+                                  <Pencil size={15} />
+                                </button>
+                                <button className="compact-icon danger" type="button" onClick={() => deleteTask(task)} aria-label={`${task.title} löschen`} title="Aufgabe löschen">
+                                  <Trash2 size={15} />
+                                </button>
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </section>
       )}
 
       {tab === "hours" && (
         <section className="data-layout">
-          <form className="entry-panel" onSubmit={createHour}>
-            <h2>Stunden eintragen</h2>
+          <form className="entry-panel" onSubmit={saveHour}>
+            <h2>{hourDraft.id ? "Eintrag bearbeiten" : "Stunden eintragen"}</h2>
             <label>
               Person
-              <select name="residentId" defaultValue={activeResident}>
+              <select
+                value={hourDraft.residentId}
+                onChange={(event) => setHourDraft((current) => ({ ...current, residentId: event.target.value }))}
+              >
                 {residents.map((resident) => (
                   <option key={resident.id} value={resident.id}>
                     {emojiForResident(resident)} {resident.name}
@@ -790,10 +1126,30 @@ export function App() {
               </select>
             </label>
             <label>
+              Bauphase
+              <select
+                value={hourDraft.phaseId}
+                onChange={(event) =>
+                  setHourDraft((current) => ({ ...current, phaseId: event.target.value, taskId: "" }))
+                }
+              >
+                <option value="">Keine Bauphase</option>
+                {phases.map((phase) => (
+                  <option key={phase.id} value={phase.id}>{phase.title}</option>
+                ))}
+              </select>
+            </label>
+            <label>
               Aufgabe
-              <select name="taskId">
-                <option value="">Allgemeine Arbeit</option>
-                {tasks.map((task) => (
+              <select
+                value={hourDraft.taskId}
+                disabled={!hourDraft.phaseId}
+                onChange={(event) => setHourDraft((current) => ({ ...current, taskId: event.target.value }))}
+              >
+                <option value="">
+                  {hourDraft.phaseId ? "Allgemeine Arbeit in der Bauphase" : "Zuerst Bauphase wählen"}
+                </option>
+                {tasksForHourPhase.map((task) => (
                   <option key={task.id} value={task.id}>
                     {task.title}
                   </option>
@@ -802,20 +1158,43 @@ export function App() {
             </label>
             <label>
               Datum
-              <input name="date" type="date" defaultValue={toDateKey(new Date())} />
+              <input
+                type="date"
+                value={hourDraft.date}
+                onChange={(event) => setHourDraft((current) => ({ ...current, date: event.target.value }))}
+                required
+              />
             </label>
             <label>
               Stunden
-              <input name="hours" type="number" min="0" step="0.25" placeholder="3.5" />
+              <input
+                type="number"
+                min="0.25"
+                step="0.25"
+                value={hourDraft.hours}
+                onChange={(event) => setHourDraft((current) => ({ ...current, hours: event.target.value }))}
+                placeholder="3.5"
+                required
+              />
             </label>
             <label>
               Notizen
-              <textarea name="notes" rows={4} />
+              <textarea
+                rows={4}
+                value={hourDraft.notes}
+                onChange={(event) => setHourDraft((current) => ({ ...current, notes: event.target.value }))}
+              />
             </label>
-            <button className="primary-action">
+            <button className="primary-action" type="submit">
               <Plus size={18} />
-              Stunden hinzufügen
+              {hourDraft.id ? "Änderungen speichern" : "Stunden hinzufügen"}
             </button>
+            {hourDraft.id && (
+              <button className="secondary-action" type="button" onClick={() => setHourDraft(emptyHourDraft(hourDraft.residentId))}>
+                <X size={17} />
+                Abbrechen
+              </button>
+            )}
           </form>
 
           <div className="table-panel">
@@ -832,19 +1211,40 @@ export function App() {
               ))}
             </div>
 
-            <h2>Letzte Einträge</h2>
-            <div className="task-list">
-              {hours.map((entry) => (
-                <article className="task-card" key={entry.id}>
-                  <div>
-                    <strong>
-                      {residents.find((resident) => resident.id === entry.residentId)?.name ?? "Person"}
-                    </strong>
-                    <span>{entry.date} · {entry.notes || "Allgemeine Arbeit"}</span>
-                  </div>
-                  <span className="pill active">{entry.hours}h</span>
-                </article>
-              ))}
+            <h2>Einträge</h2>
+            <div className="hour-list">
+              {sortedHours.length === 0 ? (
+                <p className="empty-state">Noch keine Stunden eingetragen.</p>
+              ) : sortedHours.map((entry) => {
+                const resident = residents.find((item) => item.id === entry.residentId);
+                const phase = phases.find((item) => item.id === entry.phaseId);
+                const task = tasks.find((item) => item.id === entry.taskId);
+                const context = [
+                  phase?.title ?? (entry.phaseId ? "Gelöschte Bauphase" : "Allgemeine Arbeit"),
+                  task?.title ?? (entry.taskId ? "Gelöschte Aufgabe" : ""),
+                ].filter(Boolean).join(" · ");
+                return (
+                  <article className="hour-row" key={entry.id}>
+                    <div className="hour-person">
+                      {resident && <span className="resident-emoji" role="img" aria-label={resident.name}>{emojiForResident(resident)}</span>}
+                      <div>
+                        <strong>{resident?.name ?? "Person"}</strong>
+                        <span>{entry.date} · {context}</span>
+                        {entry.notes && <small>{entry.notes}</small>}
+                      </div>
+                    </div>
+                    <strong className="hour-value">{entry.hours}h</strong>
+                    <div className="row-actions">
+                      <button className="compact-icon" type="button" onClick={() => editHour(entry)} aria-label="Stundeneintrag bearbeiten" title="Bearbeiten">
+                        <Pencil size={15} />
+                      </button>
+                      <button className="compact-icon danger" type="button" onClick={() => deleteHour(entry)} aria-label="Stundeneintrag löschen" title="Löschen">
+                        <Trash2 size={15} />
+                      </button>
+                    </div>
+                  </article>
+                );
+              })}
             </div>
           </div>
         </section>

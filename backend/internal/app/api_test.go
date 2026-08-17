@@ -28,10 +28,13 @@ func TestSyncSnapshotRoundTrip(t *testing.T) {
 			Period:     PeriodMorning,
 			Status:     StatusGreen,
 		}},
-		Tasks: []Task{{ID: "task-1", Title: "Dach", Status: "planned"}},
+		Phases: []BuildPhase{{ID: "phase-1", Title: "Dach", Status: "active"}},
+		Tasks:  []Task{{ID: "task-1", PhaseID: "phase-1", Title: "Ziegel", Status: "planned"}},
 		Hours: []HourEntry{{
 			ID:         "hour-1",
 			ResidentID: "nic",
+			PhaseID:    "phase-1",
+			TaskID:     "task-1",
 			Date:       "2026-07-12",
 			Hours:      2,
 		}},
@@ -56,6 +59,9 @@ func TestSyncSnapshotRoundTrip(t *testing.T) {
 	}
 	if len(saved.Availability) != 1 || saved.Availability[0].Status != StatusGreen {
 		t.Fatalf("saved availability = %#v", saved.Availability)
+	}
+	if len(saved.Phases) != 1 || saved.Tasks[0].PhaseID != saved.Phases[0].ID {
+		t.Fatalf("saved phase/task hierarchy = phases %#v tasks %#v", saved.Phases, saved.Tasks)
 	}
 
 	getAfter := httptest.NewRecorder()
